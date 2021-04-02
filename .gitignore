@@ -1,0 +1,12 @@
+/.venv/
+/.vscode/
+
+/data/*.csv
+/data/*.mat
+
+/pickles/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
