@@ -10,3 +10,10 @@
 __pycache__/
 *.py[cod]
 *$py.class
+
+meeting-notes.md
+
+# Subset of https://github.com/jajcayn/pyclits for surrogates.
+/scripts/pyclits
+# Interactive script for playing purposes.
+/scripts/playground.py
