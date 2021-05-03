@@ -5,6 +5,8 @@ sklearn
 ipykernel==5.5.3
 seaborn==0.11.1
 statsmodels==0.12.2
+pingouin==0.3.11
+scipy==1.6.2
 torch==1.8.0+cu111
 torch-scatter==2.0.6
 torch-sparse==0.6.9
@@ -13,7 +15,4 @@ torch-spline-conv==1.2.1
 torch-geometric==1.6.3
 
 --find-links https://download.pytorch.org/whl/torch_stable.html
---find-links https://pytorch-geometric.com/whl/torch-1.8.0+cu111.html
---find-links https://pytorch-geometric.com/whl/torch-1.8.0+cu111.html
---find-links https://pytorch-geometric.com/whl/torch-1.8.0+cu111.html
 --find-links https://pytorch-geometric.com/whl/torch-1.8.0+cu111.html
