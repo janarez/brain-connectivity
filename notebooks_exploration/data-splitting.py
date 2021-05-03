@@ -44,18 +44,18 @@ plt.show()
 test_patients = np.random.choice(patient_indexes, size=25, replace=False)
 test_controls = np.random.choice(control_indexes, size=25, replace=False)
 
-test_indexes = np.hstack([test_patients,test_controls])
+test_indices = np.hstack([test_patients,test_controls])
 
 # %%
 print(f'# test patients: {len(np.unique(test_patients))}')
 print(f'# test controls: {len(np.unique(test_controls))}')
-print(f'# test total: {len(np.unique(test_indexes))}')
+print(f'# test total: {len(np.unique(test_indices))}')
 
 # %% We save these for use across all experiments.
 PICKLE_FOLDER = '../pickles'
 
 # Do not call again! Already saved.
-# with open(f'{PICKLE_FOLDER}/test-indexes', 'wb') as f:
-#     pickle.dump(test_indexes, f)
+# with open(f'{PICKLE_FOLDER}/test-indices.pickle', 'wb') as f:
+#     pickle.dump(test_indices, f)
 
 # %%
