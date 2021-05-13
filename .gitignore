@@ -12,6 +12,8 @@ __pycache__/
 *$py.class
 
 meeting-notes.md
+progress-notes.md
+research-notes.md
 
 # Subset of https://github.com/jajcayn/pyclits for surrogates.
 /scripts/pyclits
