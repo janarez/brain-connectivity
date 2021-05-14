@@ -18,6 +18,7 @@ torch-cluster==1.5.9
 torch-spline-conv==1.2.1
 torch-geometric==1.6.3
 torchvision==0.9.0+cu111
+tensorboard==2.5.0
 
 --find-links https://download.pytorch.org/whl/torch_stable.html
 --find-links https://pytorch-geometric.com/whl/torch-1.8.0+cu111.html
