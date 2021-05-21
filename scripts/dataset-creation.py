@@ -113,3 +113,34 @@ for min_diff_threshold in [0.01, 0.05, 0.1, 0.15]:
 
     with open(f"{PICKLE_FOLDER}{folder}/{'min' if min_thresholding else 'max'}-th-{min_diff_threshold}-real.pickle", 'wb') as f:
         pickle.dump(fc_real_thresholded, f)
+
+# %% [markdown]
+### 3. Edges based on important features for random forest model - Gini importance.
+# RF parameters are based on its exploration in `standard-ml.ipynb`.
+# In effect it is used as supervised feature selection method that picks
+# in a way relevant correlations.
+
+# %% Output folder.
+folder = f'/fc-{corr_type}-gini'
+if not os.path.exists(f'{PICKLE_FOLDER}{folder}'):
+    os.makedirs(f'{PICKLE_FOLDER}{folder}')
+
+# %% Load the importance matrix.
+with open(f"{PICKLE_FOLDER}/gini-importance-matrix.pickle", 'rb') as f:
+    gini_matrix = pickle.load(f)
+
+gini_matrix = np.repeat(np.expand_dims(gini_matrix, 0), total_samples, 0)
+
+# %% Create gini indexed dataset.
+fc_binary = np.where(gini_matrix, 1, 0)
+fc_real = np.where(gini_matrix, fc, 0)
+
+with open(f"{PICKLE_FOLDER}{folder}/binary.pickle", 'wb') as f:
+    pickle.dump(fc_binary, f)
+
+with open(f"{PICKLE_FOLDER}{folder}/real.pickle", 'wb') as f:
+    pickle.dump(fc_real, f)
+
+# %%
+
+# %%
