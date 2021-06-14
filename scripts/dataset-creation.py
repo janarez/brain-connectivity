@@ -46,7 +46,7 @@ elif corr_type == "partial-pearson":
     fc = fc_partial_pearson.copy()
 
 # %% Direction of thresholding.
-min_thresholding = True
+min_thresholding = False
 
 # %% [markdown]
 ### 1. Min / max thresholded correlations by average control / patient diffs.
@@ -166,4 +166,95 @@ with open(f"{PICKLE_FOLDER}{folder}/binary.pickle", 'wb') as f:
 with open(f"{PICKLE_FOLDER}{folder}/real.pickle", 'wb') as f:
     pickle.dump(fc_real, f)
 
-# %%
+# %% [markdown]
+## Directional datasets.
+# Position (i, j) represents edge from i to j.
+
+# %% Set FC type.
+corr_type = "spearman"
+if corr_type == "pearson":
+    fc = fc_pearson.copy()
+elif corr_type == "spearman":
+    fc = fc_spearman.copy()
+elif corr_type == "partial-pearson":
+    fc = fc_partial_pearson.copy()
+
+# %% Direction of thresholding.
+min_thresholding = False
+
+# %% [markdown]
+### 5. kNN min / max correlations by average control / patient diffs.
+
+# %% Output folder.
+folder = f'/fc-{corr_type}-knn-abs-group-avg-diff'
+if not os.path.exists(f'{PICKLE_FOLDER}{folder}'):
+    os.makedirs(f'{PICKLE_FOLDER}{folder}')
+
+# %% Average computation (! using train data only !).
+control_train_indices = np.hstack(
+    [train_indices[:target_index_change],
+    np.repeat(False, total_samples-target_index_change)
+])
+patient_train_indices = np.hstack([
+    np.repeat(False, target_index_change),
+    train_indices[target_index_change:]
+])
+
+avg_fc_control = np.mean(fc[control_train_indices], axis=0)
+avg_fc_patient = np.mean(fc[patient_train_indices], axis=0)
+avg_fc_diff = np.abs(avg_fc_control - avg_fc_patient)
+
+# %% Generate FC edges at different thresholds.
+for knn in [3, 5, 7, 10, 15, 20, 40]:
+
+    fc_knn = np.zeros((total_brain_regions, total_brain_regions), dtype=bool)
+
+    if min_thresholding:
+        knn_index = np.argsort(avg_fc_diff)[:,-knn:]
+    else:
+        knn_index = np.argsort(avg_fc_diff)[:,:knn]
+
+    fc_knn[np.repeat(np.arange(total_brain_regions), knn), np.reshape(knn_index, -1)] = True
+    fc_diff_tiled = np.tile(fc_knn, (df.shape[0], 1, 1))
+
+    fc_binary_thresholded = np.where(fc_diff_tiled, 1, 0)
+    fc_real_thresholded = np.where(fc_diff_tiled, fc, 0)
+
+    with open(f"{PICKLE_FOLDER}{folder}/{'large' if min_thresholding else 'small'}-knn-{knn}-binary.pickle", 'wb') as f:
+        pickle.dump(fc_binary_thresholded, f)
+
+    with open(f"{PICKLE_FOLDER}{folder}/{'large' if min_thresholding else 'small'}-knn-{knn}-real.pickle", 'wb') as f:
+        pickle.dump(fc_real_thresholded, f)
+
+# %% [markdown]
+### 6. kNN min / max correlations by absolute sample values.
+
+# %% Output folder.
+folder = f'/fc-{corr_type}-knn-abs-sample-diff'
+if not os.path.exists(f'{PICKLE_FOLDER}{folder}'):
+    os.makedirs(f'{PICKLE_FOLDER}{folder}')
+
+# %% Generate FC edges at different thresholds.
+for knn in [3, 5, 7, 10, 15, 20, 40]:
+
+    fc_knn = np.zeros((total_samples, total_brain_regions, total_brain_regions), dtype=bool)
+
+    if min_thresholding:
+        knn_index = np.argsort(np.abs(fc))[:,:,-knn:]
+    else:
+        knn_index = np.argsort(np.abs(fc))[:,:,:knn]
+
+    fc_knn[
+        np.repeat(np.arange(total_samples), knn*total_brain_regions),
+        np.repeat(np.arange(total_brain_regions), knn*total_samples),
+        np.reshape(knn_index, -1)
+    ] = True
+
+    fc_binary_thresholded = np.where(fc_knn, 1, 0)
+    fc_real_thresholded = np.where(fc_knn, fc, 0)
+
+    with open(f"{PICKLE_FOLDER}{folder}/{'large' if min_thresholding else 'small'}-knn-{knn}-binary.pickle", 'wb') as f:
+        pickle.dump(fc_binary_thresholded, f)
+
+    with open(f"{PICKLE_FOLDER}{folder}/{'large' if min_thresholding else 'small'}-knn-{knn}-real.pickle", 'wb') as f:
+        pickle.dump(fc_real_thresholded, f)
