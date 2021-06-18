@@ -33,14 +33,16 @@ fixed random state 42
 ## Fully connected network
 
 - id: 002
-  - mean: 85 \%
-  - std: 5 \%
+  - mean: 85 %
+  - std: 5 %
   - ~80k parameters
   - 8 hidden nodes
 - id: 003
-  - mean: 84 \%
-  - std: 7 \%
+  - mean: 84 %
+  - std: 7 %
   - ~150k parameters
   - 16 hidden nodes
+
+- the concat layer is not necessary, input to the last linear layer can be simply the output of preceding layer without decrease in accuracy
 
 ## Graph isomorphism network
