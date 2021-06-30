@@ -30,7 +30,21 @@ fixed random state 42
   - folds are not strictly weak or strong
   - usually, a weak one, one or two middle and then strong
 
+Reported results are for full 8100 flattened matrix. Results for upper triangle matrix are equivalent. Further taking absolute value decreases accuracy by ~3 % and std by ~1-2 %.
+
 ## Fully connected network
+
+Tested all three correlation types.
+  - Pearson: best
+  - Spearman: comparable
+  - Partial Pearson: uninformative
+
+Tested all three matrix flattening types.
+  - Full: comparable
+    - 90 * 90 = 8100
+  - Upper triangle: best
+    - 90 ** 2 / 2 - 45 = 4005
+  - Absolute upper triangle: on most folds looses accuracy around 7 %
 
 - id: 002
   - mean: 85 %
