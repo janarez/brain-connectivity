@@ -7,6 +7,7 @@ ipykernel==5.5.3
 seaborn==0.11.1
 statsmodels==0.12.2
 pingouin==0.3.11
+networkx==2.5
 scipy==1.6.2
 grad-cam==1.2.7
 opencv-python==4.5.1.48
