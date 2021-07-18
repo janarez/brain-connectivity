@@ -37,7 +37,7 @@ train_indices = ~np.isin(np.arange(total_samples), test_indices)
 #### Run from this point to change FC type.
 
 # %% Set FC type.
-corr_type = "partial-pearson"
+corr_type = "spearman"
 if corr_type == "pearson":
     fc = fc_pearson.copy()
 elif corr_type == "spearman":
@@ -46,7 +46,7 @@ elif corr_type == "partial-pearson":
     fc = fc_partial_pearson.copy()
 
 # %% Direction of thresholding.
-min_thresholding = False
+min_thresholding = True
 
 # %% [markdown]
 ### 1. Min / max thresholded correlations by average control / patient diffs.
@@ -244,11 +244,9 @@ for knn in [3, 5, 7, 10, 15, 20, 40]:
     else:
         knn_index = np.argsort(np.abs(fc))[:,:,:knn]
 
-    fc_knn[
-        np.repeat(np.arange(total_samples), knn*total_brain_regions),
-        np.repeat(np.arange(total_brain_regions), knn*total_samples),
-        np.reshape(knn_index, -1)
-    ] = True
+    for s in range(total_samples):
+        for r in range(total_brain_regions):
+            fc_knn[s,r,knn_index[s,r]] = True
 
     fc_binary_thresholded = np.where(fc_knn, 1, 0)
     fc_real_thresholded = np.where(fc_knn, fc, 0)
