@@ -222,8 +222,7 @@ Collections of papers that use some GNN method on functional connectivity matric
 
 ## 5. A Deep Learning Model for Data-Driven Discovery of Functional Connectivity
 
-TODO: Write summary
-- **Summary: **
+- **Summary: Architecture that uses self-attention for edge weights instead of Pearson correlation.**
 
 - Published: Feb, 2021 at MDPI Algorithms
   - Also as [ICLR 2021 Workshop GTRL poster](https://openreview.net/forum?id=v7Bct24zeft)
