@@ -6,7 +6,7 @@ import torch.nn as nn
 from torch.utils.tensorboard.writer import SummaryWriter
 from torch_geometric.data.dataloader import DataLoader
 
-from evaluation import ModelEvaluation
+from .evaluation import ModelEvaluation
 
 
 class ModelType(Enum):
@@ -22,12 +22,14 @@ class Model():
         valloader: DataLoader,
         writer: SummaryWriter,
         epochs: int,
-        learning_rate: float,
-        momentum: float,
+        validation_frequency: int,
         optimizer: torch.optim.Optimizer,
-        criterion,
+        momentum: float,
+        learning_rate: float,
         weight_decay: float,
-        validation_frequency: int
+        step_size: int,
+        gamma: float,
+        criterion,
     ):
         # Already initiated model.
         self.model = model
@@ -36,6 +38,7 @@ class Model():
 
         self.optimizer = optimizer(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
         self.criterion = criterion
+        self.writer = writer
         self.evaluation = ModelEvaluation(writer)
 
         self.epochs = epochs
@@ -57,7 +60,7 @@ class Model():
                 self.evaluation.log_evaluation(epoch)
 
 
-    def _epoch_step(self, dataloader, epoch, evaluate=False):
+    def _epoch_step(self, dataloader: DataLoader, epoch: int, evaluate: bool = False):
             running_loss = 0.
             if evaluate:
                 self.model.eval()
@@ -82,7 +85,7 @@ class Model():
             )
 
 
-    def _model_step(self, data, backpropagate=True):
+    def _model_step(self, data, backpropagate: bool = True):
         self.optimizer.zero_grad()
         outputs = self.model(data)
 

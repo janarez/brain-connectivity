@@ -1,10 +1,8 @@
-import typing
 from typing import List, Union
 import copy
 import numpy as np
 
 import torch
-import torch.nn.functional as F
 import torch.nn as nn
 
 from torch_geometric.nn import GINConv, global_add_pool
