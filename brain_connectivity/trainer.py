@@ -1,5 +1,4 @@
 from typing import Union, List
-from enum import Enum, auto
 
 import torch
 import torch.nn as nn
@@ -9,12 +8,7 @@ from torch_geometric.data.dataloader import DataLoader
 from .evaluation import ModelEvaluation
 
 
-class ModelType(Enum):
-    GRAPH = auto()
-    DENSE = auto()
-
-
-class Model():
+class Trainer():
     def __init__(
         self,
         model,
@@ -68,7 +62,7 @@ class Model():
                 self.model.train()
 
             for data in dataloader:
-                loss, outputs = self._model_step(data, backpropagate=evaluate)
+                loss, outputs = self._model_step(data, backpropagate=not evaluate)
                 running_loss += loss
 
                 # Calculate evaluation metrics.
