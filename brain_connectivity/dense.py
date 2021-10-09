@@ -149,7 +149,9 @@ class ConnectivityDenseNet(nn.Module):
         self.fc = nn.Linear(num_out_features[-1], 2)
 
 
-    def forward(self, x):
+    def forward(self, data):
+        x = data.x
+
         # Run sample through model.
         for sublayer in self.sublayers:
             x = sublayer(x)
