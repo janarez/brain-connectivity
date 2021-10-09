@@ -1,4 +1,3 @@
-from enum import Enum, auto
 from typing import List, Union
 import copy
 import numpy as np
@@ -6,6 +5,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
+
+from .enums import ConnectivityMode
 
 
 class ConnectivityEmbedding(nn.Module):
@@ -45,21 +46,6 @@ class ConnectivityMLP(nn.Module):
 
     def forward(self, x):
         return F.relu(self.dropout(self.fc(x)))
-
-
-class ConnectivityMode(Enum):
-    """
-    Determines how is connectivity matrix obtained.
-
-    FIXED: Use handmade FC matrix.
-    START: Learn FC matrix only on raw input features.
-    SINGLE: Learn FC matrix on raw input features as well as all subsequent feature mapping layers.
-    MULTIPLE: Learn new FC matrix before every feature mapping layer.
-    """
-    FIXED = auto()
-    START = auto()
-    SINGLE = auto()
-    MULTIPLE = auto()
 
 
 class ConnectivitySublayer(nn.Module):
