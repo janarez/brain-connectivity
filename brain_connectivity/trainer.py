@@ -17,10 +17,10 @@ class Trainer():
         writer: SummaryWriter,
         epochs: int,
         validation_frequency: int,
+        fc_matrix_plot_frequency: int,
+        fc_matrix_plot_sublayer: int,
         optimizer: torch.optim.Optimizer,
-        momentum: float,
-        learning_rate: float,
-        weight_decay: float,
+        optimizer_kwargs: dict,
         step_size: int,
         gamma: float,
         criterion,
@@ -30,7 +30,7 @@ class Trainer():
         self.trainloader = trainloader
         self.valloader = valloader
 
-        self.optimizer = optimizer(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        self.optimizer = optimizer(model.parameters(), **optimizer_kwargs)
         self.criterion = criterion
         self.writer = writer
         self.evaluation = ModelEvaluation(writer)
@@ -38,8 +38,8 @@ class Trainer():
         self.epochs = epochs
         self.validation_frequency = validation_frequency
 
-        self.momentum = momentum
-        self.weight_decay = weight_decay
+        self.fc_matrix_plot_frequency = fc_matrix_plot_frequency
+        self.fc_matrix_plot_sublayer = fc_matrix_plot_sublayer
 
 
     def train(self):
@@ -52,6 +52,10 @@ class Trainer():
                 self.evaluation.reset()
                 self._epoch_step(self.valloader, epoch=epoch, evaluate=True)
                 self.evaluation.log_evaluation(epoch)
+
+            # Plot connectivity matrix.
+            if (epoch+1) % self.fc_matrix_plot_frequency == 0:
+                self.model.plot_fc_matrix(epoch, sublayer=self.fc_matrix_plot_sublayer)
 
 
     def _epoch_step(self, dataloader: DataLoader, epoch: int, evaluate: bool = False):

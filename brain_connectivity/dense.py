@@ -7,6 +7,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 
 from .enums import ConnectivityMode
+from .visualizations import plot_fc_matrix
 
 
 class ConnectivityEmbedding(nn.Module):
@@ -19,7 +20,11 @@ class ConnectivityEmbedding(nn.Module):
     def __init__(self, size, dropout: 0.0):
         super(ConnectivityEmbedding, self).__init__()
         # Initialize with fully connected graph.
-        self.fc_matrix = nn.Parameter(torch.ones(size, size), requires_grad=True)
+        self.fc_matrix = nn.Parameter(torch.empty(size, size), requires_grad=True)
+        # torch.nn.init.uniform_(self.fc_matrix, a=-1/size, b=1/size)
+        torch.nn.init.constant_(self.fc_matrix, val=0.0)
+        # torch.nn.init.sparse_(self.fc_matrix, sparsity=0.5)
+
         self.dropout = nn.Dropout(p=dropout)
 
 
@@ -55,13 +60,15 @@ class ConnectivitySublayer(nn.Module):
     Input: [batch_size, num_nodes, num_in_features]
     Output: [batch_size, num_nodes, num_out_features]
     """
-    def __init__(self, sublayer_id: int, size_in: int, size_out: int, dropout: float, mode: ConnectivityMode, **mode_kwargs):
+    def __init__(self, sublayer_id: int, size_in: int, size_out: int, size_emb: int,
+        dropout: float, mode: ConnectivityMode, **mode_kwargs
+    ):
         super(ConnectivitySublayer, self).__init__()
 
         self.id = sublayer_id
         # Create new FC matrix for this sublayer.
         if mode == ConnectivityMode.MULTIPLE:
-            self.fc_matrix = ConnectivityEmbedding(size_in, dropout=mode_kwargs['fc_dropout'])
+            self.fc_matrix = ConnectivityEmbedding(size_emb, dropout=mode_kwargs['fc_dropout'])
         # Used passed in FC matrix.
         else:
             self.fc_matrix = mode_kwargs['fc_matrix']
@@ -71,6 +78,7 @@ class ConnectivitySublayer(nn.Module):
 
         # Feature mapping layer.
         self.mlp = ConnectivityMLP(size_in, size_out, dropout)
+
 
     def forward(self, x):
         # Aggregate feature vectors based on connectivity neighborhood.
@@ -126,7 +134,7 @@ class ConnectivityDenseNet(nn.Module):
         # Create model stacked from sublayers: connectivity + feature mapping.
         self.sublayers = nn.ModuleList([
             ConnectivitySublayer(
-                i, size_in, size_out, dropout=dropout, mode=mode, **self.mode_kwargs
+                i, size_in, size_out, size_emb=num_nodes, dropout=dropout, mode=mode, **self.mode_kwargs
             ) for i, (size_in, size_out) in enumerate(zip(num_in_features, num_out_features))
         ])
 
@@ -153,7 +161,15 @@ class ConnectivityDenseNet(nn.Module):
         elif self.readout == 'mean':
             x = torch.mean(x, dim=1)
         if self.readout == 'max':
-            x = torch.max(x, dim=1)
+            x = torch.max(x, dim=1).values
 
         # Return binary logits.
         return self.fc(x)
+
+
+    def plot_fc_matrix(self, epoch, sublayer=0):
+        # TODO: Adapt for any connectivity mode.
+        fc_matrix = self.sublayers[sublayer].fc_matrix.fc_matrix
+        numpy_fc_matrix = fc_matrix.cpu().detach().numpy()
+        print(fc_matrix.sum(), numpy_fc_matrix.sum(), numpy_fc_matrix.mean(), numpy_fc_matrix.std())
+        plot_fc_matrix(matrix=numpy_fc_matrix, epoch=epoch)
