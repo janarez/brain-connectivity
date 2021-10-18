@@ -11,6 +11,7 @@ from .evaluation import ModelEvaluation
 class Trainer():
     def __init__(
         self,
+        # Already initiated model.
         model,
         trainloader: DataLoader,
         valloader: DataLoader,
@@ -21,17 +22,18 @@ class Trainer():
         fc_matrix_plot_sublayer: int,
         optimizer: torch.optim.Optimizer,
         optimizer_kwargs: dict,
-        step_size: int,
-        gamma: float,
+        scheduler: torch.optim.lr_scheduler,
+        scheduler_kwargs: dict,
         criterion,
     ):
-        # Already initiated model.
         self.model = model
         self.trainloader = trainloader
         self.valloader = valloader
 
         self.optimizer = optimizer(model.parameters(), **optimizer_kwargs)
+        self.scheduler = scheduler(self.optimizer, **scheduler_kwargs)
         self.criterion = criterion
+
         self.writer = writer
         self.evaluation = ModelEvaluation(writer)
 
@@ -56,6 +58,12 @@ class Trainer():
             # Plot connectivity matrix.
             if (epoch+1) % self.fc_matrix_plot_frequency == 0:
                 self.model.plot_fc_matrix(epoch, sublayer=self.fc_matrix_plot_sublayer)
+
+            # Update learning rate.
+            self.scheduler.step()
+
+            # Return results for best accuracy.
+            return self.evaluation.get_best_results()
 
 
     def _epoch_step(self, dataloader: DataLoader, epoch: int, evaluate: bool = False):

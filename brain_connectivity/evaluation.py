@@ -5,6 +5,10 @@ class ModelEvaluation():
 
     def __init__(self, writer: SummaryWriter):
         self.writer = writer
+        self.best_results = {
+            'accuracy': -1
+        }
+
         self.reset()
 
 
@@ -21,9 +25,22 @@ class ModelEvaluation():
 
 
     def log_evaluation(self, epoch):
-        self.writer.add_scalar('validation accuracy', (self.tp + self.tn) / self.total, epoch)
-        self.writer.add_scalar('validation precision', self.tp / (self.tp + self.fp) if (self.tp + self.fp) > 0 else 0, epoch)
-        self.writer.add_scalar('validation recall', self.tp / (self.tp + self.fn), epoch)
+        # Calculate.
+        accuracy = (self.tp + self.tn) / self.total
+        recall = self.tp / (self.tp + self.fp) if (self.tp + self.fp) > 0 else 0
+        precision = self.tp / (self.tp + self.fn)
+
+        # Log.
+        self.writer.add_scalar('validation accuracy', accuracy, epoch)
+        self.writer.add_scalar('validation precision', recall, epoch)
+        self.writer.add_scalar('validation recall', precision, epoch)
+
+        # Save if best so far.
+        if self.best_results['accuracy'] < accuracy:
+            self.best_results['accuracy'] = accuracy
+            self.best_results['epoch'] = epoch
+            self.best_results['recall'] = recall
+            self.best_results['precision'] = precision
 
 
     def reset(self):
@@ -33,3 +50,7 @@ class ModelEvaluation():
         self.fn = 0
         # How many times was evaluation run?
         self.total = 0
+
+
+    def get_best_results(self):
+        return self.best_results
