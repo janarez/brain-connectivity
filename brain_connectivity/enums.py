@@ -30,6 +30,9 @@ class CorrelationType(Enum):
     SPEARMAN = 'spearman'
     PARTIAL_PEARSON = 'partial_pearson'
 
+    def __str__(self):
+        return f'{self.value}'
+
 
 class DataThresholdingType(Enum):
     KNN = auto()
@@ -37,7 +40,7 @@ class DataThresholdingType(Enum):
     SPARSITY = auto()
 
 
-class ConnectivityDatasetType(Enum):
+class ThresholdingFunction(Enum):
     GROUP_AVERAGE = auto()
     SUBJECT_VALUES = auto()
     EXPLICIT_MATRIX = auto()
