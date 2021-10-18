@@ -1,5 +1,4 @@
 from typing import List, Union
-import copy
 import numpy as np
 
 import torch
@@ -35,8 +34,9 @@ class GIN(torch.nn.Module):
         # Prepare feature mapping dimensions.
         if type(num_hidden_features) is int:
             num_out_features = np.repeat(num_hidden_features, num_sublayers)
-        num_in_features = copy.copy(num_out_features)
-        num_in_features[0] = size_in
+        else:
+            num_out_features = num_hidden_features
+        num_in_features = [size_in] + num_out_features
 
         self.convs = torch.nn.ModuleList([
             GINConv(nn=GinMLP(size_in, size_out, dropout=dropout), eps=eps) for size_in, size_out in zip(num_in_features, num_out_features)
