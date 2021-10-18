@@ -23,3 +23,22 @@ class ConnectivityMode(Enum):
     START = auto()
     SINGLE = auto()
     MULTIPLE = auto()
+
+
+class CorrelationType(Enum):
+    PEARSON = 'pearson'
+    SPEARMAN = 'spearman'
+    PARTIAL_PEARSON = 'partial_pearson'
+
+
+class DataThresholdingType(Enum):
+    KNN = auto()
+    FIXED_THRESHOLD = auto()
+    SPARSITY = auto()
+
+
+class ConnectivityDatasetType(Enum):
+    GROUP_AVERAGE = auto()
+    SUBJECT_VALUES = auto()
+    EXPLICIT_MATRIX = auto()
+    RANDOM = auto()
