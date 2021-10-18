@@ -1,5 +1,4 @@
 from typing import List, Union
-import copy
 import numpy as np
 
 import torch
@@ -17,16 +16,17 @@ class ConnectivityEmbedding(nn.Module):
     Input: [batch_size, num_nodes, num_features]
     Output: [batch_size, num_nodes, num_features]
     """
-    def __init__(self, size, dropout: 0.0):
+    def __init__(self, size, dropout=0.0, residual='mean'):
         super(ConnectivityEmbedding, self).__init__()
         # Initialize with fully connected graph.
         self.fc_matrix = nn.Parameter(torch.empty(size, size), requires_grad=True)
-        # torch.nn.init.uniform_(self.fc_matrix, a=-1/size, b=1/size)
-        torch.nn.init.constant_(self.fc_matrix, val=0.0)
-        # torch.nn.init.sparse_(self.fc_matrix, sparsity=0.5)
+        # nn.init.uniform_(self.fc_matrix, a=-1/size, b=1/size)
+        # nn.init.normal_(self.fc_matrix, mean=0, std=0.1)
+        nn.init.constant_(self.fc_matrix, val=0.0)
+        # nn.init.sparse_(self.fc_matrix, sparsity=0.5)
 
         self.dropout = nn.Dropout(p=dropout)
-
+        self.residual = residual
 
     def toggle_gradients(self, requires_grad):
         self.fc_matrix.requires_grad = requires_grad
@@ -34,7 +34,17 @@ class ConnectivityEmbedding(nn.Module):
 
     def forward(self, x):
         # There is no non-linearity since we are just combining nodes.
-        return self.dropout(torch.matmul(self.fc_matrix, x))
+        x_neighborhoods = self.dropout(torch.matmul(self.fc_matrix, x))
+
+        # Combine with original input for residual connection.
+        if self.residual == 'add':
+            x = x + x_neighborhoods
+        elif self.residual == 'mean':
+            x = torch.mean(torch.stack([x, x_neighborhoods]), dim=0)
+        elif self.residual == 'max':
+            x = torch.max(torch.stack([x, x_neighborhoods]), dim=0).values
+
+        return x
 
 
 class ConnectivityMLP(nn.Module):
@@ -128,8 +138,9 @@ class ConnectivityDenseNet(nn.Module):
         # Prepare feature mapping dimensions.
         if type(num_hidden_features) is int:
             num_out_features = np.repeat(num_hidden_features, num_sublayers)
-        num_in_features = copy.copy(num_out_features)
-        num_in_features[0] = size_in
+        else:
+            num_out_features = num_hidden_features
+        num_in_features = [size_in] + num_out_features
 
         # Create model stacked from sublayers: connectivity + feature mapping.
         self.sublayers = nn.ModuleList([
@@ -160,7 +171,7 @@ class ConnectivityDenseNet(nn.Module):
             x = torch.sum(x, dim=1)
         elif self.readout == 'mean':
             x = torch.mean(x, dim=1)
-        if self.readout == 'max':
+        elif self.readout == 'max':
             x = torch.max(x, dim=1).values
 
         # Return binary logits.
