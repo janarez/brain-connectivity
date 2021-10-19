@@ -45,3 +45,8 @@ class ThresholdingFunction(Enum):
     SUBJECT_VALUES = auto()
     EXPLICIT_MATRIX = auto()
     RANDOM = auto()
+
+
+class NodeFeatures(Enum):
+    FC_MATRIX_ROW = auto()
+    ONE_HOT_REGION = auto()
