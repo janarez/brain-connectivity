@@ -3,6 +3,7 @@
 
 /data/*.csv
 /data/*.mat
+/data/*.pickle
 
 /pickles/
 /runs/
