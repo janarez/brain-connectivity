@@ -1,25 +1,18 @@
-from functools import partial
+import logging
 import os
 import pickle
-import logging
+from functools import partial
+from typing import Union
+
 import numpy as np
 import pandas as pd
-from typing import Optional, Union
-import operator
-
 import torch
-from torch.utils.data import TensorDataset
-from torch_geometric.data import Data, DataLoader
 from sklearn.model_selection import StratifiedKFold
+from torch_geometric.data import Data, DataLoader
 
-from .enums import CorrelationType, NodeFeatures, ThresholdingFunction, DataThresholdingType
-from .fc_matrix import (
-    get_data_threshold_at_largest_average_difference_between_groups,
-    get_data_thresholded_by_explicit_matrix,
-    get_data_thresholded_by_random_matrix,
-    get_data_thresholded_by_sample_values,
-)
-from .data_utils import dotdict, identity_matrix, zeroth_axis_sample
+from .data_utils import DenseDataset, dotdict, identity_matrix, zeroth_axis_sample
+from .enums import CorrelationType, NodeFeatures
+from .fc_matrix import create_connectivity_matrices
 
 
 class FunctionalConnectivityDataset:
@@ -35,6 +28,7 @@ class FunctionalConnectivityDataset:
         batch_size: int = 8,
         num_folds: int = 7,
         random_seed: int = 42,
+        geometric_dataset_kwargs: dict = {},
     ):
         self.log_folder = log_folder
         self.base_folder = folder
@@ -50,14 +44,13 @@ class FunctionalConnectivityDataset:
         self.random_seed = random_seed
         self.rng = np.random.default_rng(random_seed)
 
-        # Select how node features are obtained.
-        if node_features == NodeFeatures.FC_MATRIX_ROW:
-            self.get_node_features = partial(zeroth_axis_sample, self.raw_fc_matrices)
-        elif node_features == NodeFeatures.ONE_HOT_REGION:
-            self.get_node_features = partial(identity_matrix, self.num_regions)
+        # Parameters for setting up node features.
+        self.node_features = node_features
+        self.geometric_dataset_kwargs = geometric_dataset_kwargs
 
-        # Split data into hidden test set and training (dev+train) set.
+        # Split data into hidden test set and dev (train+validation) set.
         self.dev_indices, self.test_indices = self._dev_test_split(test_size=test_size)
+        self.train_indices, self.val_indices = self.next_fold()
 
         # Save to file before training.
         self._log()
@@ -77,60 +70,9 @@ class FunctionalConnectivityDataset:
         logging.debug(f"Loaded dataset with shape {f.shape}")
         return f
 
-    def create_connectivity_dataset(
-        self,
-        thresholding_function: ThresholdingFunction,
-        threshold_type: DataThresholdingType,
-        threshold: Union[float, int],
-        thresholding_operator: Optional[Union[operator.le, operator.ge]] = operator.ge,
-        threshold_by_absolute_value: bool = True,
-        return_absolute_value: bool = False,
-    ):
-        if thresholding_function == ThresholdingFunction.GROUP_AVERAGE:
-            b, r = get_data_threshold_at_largest_average_difference_between_groups(
-                raw_fc_matrices=self.raw_fc_matrices,
-                binary_targets=None,
-                train_indices=None,
-                threshold_type=threshold_type,
-                threshold=threshold,
-                thresholding_operator=thresholding_operator,
-            )
-        elif thresholding_function == ThresholdingFunction.SUBJECT_VALUES:
-            b, r = get_data_thresholded_by_sample_values(
-                raw_fc_matrices=self.raw_fc_matrices,
-                threshold_type=threshold_type,
-                threshold=threshold,
-                thresholding_operator=thresholding_operator,
-                threshold_by_absolute_value=threshold_by_absolute_value,
-                return_absolute_value=return_absolute_value,
-            )
-        elif thresholding_function == ThresholdingFunction.EXPLICIT_MATRIX:
-            b, r = get_data_thresholded_by_explicit_matrix(
-                raw_fc_matrices=self.raw_fc_matrices,
-                thresholding_matrix=None,
-                threshold_type=threshold_type,
-                threshold=threshold,
-                thresholding_operator=thresholding_operator,
-                threshold_by_absolute_value=threshold_by_absolute_value,
-                return_absolute_value=return_absolute_value,
-            )
-        elif thresholding_function == ThresholdingFunction.RANDOM:
-            b, r = get_data_thresholded_by_random_matrix(
-                raw_fc_matrices=self.raw_fc_matrices,
-                per_subject=None,
-                threshold_type=threshold_type,
-                threshold=threshold,
-                thresholding_operator=thresholding_operator,
-                threshold_by_absolute_value=threshold_by_absolute_value,
-                return_absolute_value=return_absolute_value,
-            )
-
-        self.binary_fc_matrices = b
-        self.real_fc_matrices = r
-
     def _dev_test_split(self, test_size):
-        patient_indexes = np.where(self.targets == 1)
-        control_indexes = np.where(self.targets == 0)
+        patient_indexes = np.argwhere(self.targets == 1).reshape(-1)
+        control_indexes = np.argwhere(self.targets == 0).reshape(-1)
 
         if type(test_size) == float:
             test_size = round(self.num_subjects * test_size)
@@ -139,7 +81,7 @@ class FunctionalConnectivityDataset:
         test_controls = self.rng.choice(control_indexes, size=test_size // 2, replace=False)
 
         test_indices = np.hstack([test_patients, test_controls])
-        train_indices = list(set(range(self.num_subjects)) - set(test_indices))
+        train_indices = np.array(list(set(range(self.num_subjects)) - set(test_indices)))
 
         assert len(test_indices) + len(train_indices) == self.num_subjects, "Dataset splitting created / lost samples."
         logging.debug(f"Test size: {len(test_indices)}")
@@ -149,9 +91,21 @@ class FunctionalConnectivityDataset:
 
         return train_indices, test_indices
 
+    def _get_node_features_function(self):
+        # Each node contains its row of the raw correlation matrix.
+        if self.node_features == NodeFeatures.FC_MATRIX_ROW:
+            node_features_function = partial(zeroth_axis_sample, self.raw_fc_matrices)
+        # Each node contains one hot encoding of its brain region id.
+        elif self.node_features == NodeFeatures.ONE_HOT_REGION:
+            node_features_function = partial(identity_matrix, self.num_regions)
+        else:
+            raise ValueError(f"Unknown value of `node_features` - ({self.node_features}). Use the `NodeFeatures` enum.")
+        return node_features_function
+
     def _get_dense_dataset(self, indices):
-        return TensorDataset(
-            torch.from_numpy(self.raw_fc_matrices[indices]).to(torch.float32),
+        node_features_function = self._get_node_features_function()
+        return DenseDataset(
+            node_features_function(indices).to(torch.float32),
             torch.from_numpy(self.targets[indices]).to(torch.int64),
         )
 
@@ -165,10 +119,20 @@ class FunctionalConnectivityDataset:
         - `data.y`: Target to train against (may have arbitrary shape), e.g., node-level targets of shape `[num_nodes, *]` or graph-level targets of shape `[1, *]`
         - `data.pos`: Node position matrix with shape `[num_nodes, num_dimensions]`
         """
+        # We create FC data every time, since the average method needs to be calculated on training data only (i.e. before each fold)
+        # and the overhead is small.
+        binary_fc_matrices, real_fc_matrices = create_connectivity_matrices(
+            self.raw_fc_matrices,
+            **self.geometric_dataset_kwargs,
+            binary_targets=self.targets,
+            # Only training info, no val / test data.
+            train_indices=self.train_indices,
+        )
+        node_features_function = self._get_node_features_function()
         return [
             Data(
-                x=self.get_node_features(i),
-                edge_index=torch.from_numpy(np.asarray(np.nonzero(self.binary_fc_matrices[i]))).to(torch.int64),
+                x=node_features_function([i]).squeeze(0),
+                edge_index=torch.from_numpy(np.asarray(np.nonzero(binary_fc_matrices[i]))).to(torch.int64),
                 y=torch.tensor([target], dtype=torch.int64),
             )
             for target, i in zip(self.targets[indices], indices)
@@ -197,6 +161,7 @@ class FunctionalConnectivityDataset:
 
     @property
     def dense_valloader(self):
+        # We need to map to `dotdict` here, because `DataLoader` always returns plain dict from batch collating.
         return list(
             map(
                 dotdict,
@@ -214,4 +179,6 @@ class FunctionalConnectivityDataset:
         )
 
     def next_fold(self):
-        _, (self.train_indices, self.val_indices) = next(self.skf(self.dev_indices, self.targets[self.train_indices]))
+        "Updates train and validation indices to that of next stratified fold."
+        train_split, val_split = next(self.skf.split(self.dev_indices, self.targets[self.dev_indices]))
+        return self.dev_indices[train_split], self.dev_indices[val_split]
