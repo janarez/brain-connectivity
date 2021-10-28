@@ -1,15 +1,69 @@
-from enum import Enum, auto
 import operator
 from typing import Optional, Union
+
 import numpy as np
 
-# from .enums import DataThresholdingType
+from .enums import DataThresholdingType, ThresholdingFunction
 
 
-class DataThresholdingType(Enum):
-    KNN = auto()
-    FIXED_THRESHOLD = auto()
-    SPARSITY = auto()
+def create_connectivity_matrices(
+    data,
+    thresholding_function: ThresholdingFunction,
+    threshold_type: DataThresholdingType,
+    threshold: Union[float, int],
+    thresholding_operator: Optional[Union[operator.le, operator.ge]] = operator.ge,
+    threshold_by_absolute_value: bool = True,
+    return_absolute_value: bool = False,
+    # Specific to `ThresholdingFunction.GROUP_AVERAGE`.
+    binary_targets=None,
+    train_indices=None,
+    # Specific to `ThresholdingFunction.EXPLICIT_MATRIX`.
+    thresholding_matrix=None,
+    # Specific to `ThresholdingFunction.RANDOM`.
+    per_subject: bool = True,
+    random_seed: int = 42,
+):
+    if thresholding_function == ThresholdingFunction.GROUP_AVERAGE:
+        b, r = get_data_threshold_at_largest_average_difference_between_groups(
+            raw_fc_matrices=data,
+            binary_targets=binary_targets,
+            train_indices=train_indices,
+            threshold_type=threshold_type,
+            threshold=threshold,
+            thresholding_operator=thresholding_operator,
+        )
+    elif thresholding_function == ThresholdingFunction.SUBJECT_VALUES:
+        b, r = get_data_thresholded_by_sample_values(
+            raw_fc_matrices=data,
+            threshold_type=threshold_type,
+            threshold=threshold,
+            thresholding_operator=thresholding_operator,
+            threshold_by_absolute_value=threshold_by_absolute_value,
+            return_absolute_value=return_absolute_value,
+        )
+    elif thresholding_function == ThresholdingFunction.EXPLICIT_MATRIX:
+        b, r = get_data_thresholded_by_explicit_matrix(
+            raw_fc_matrices=data,
+            thresholding_matrix=thresholding_matrix,
+            threshold_type=threshold_type,
+            threshold=threshold,
+            thresholding_operator=thresholding_operator,
+            threshold_by_absolute_value=threshold_by_absolute_value,
+            return_absolute_value=return_absolute_value,
+        )
+    elif thresholding_function == ThresholdingFunction.RANDOM:
+        b, r = get_data_thresholded_by_random_matrix(
+            raw_fc_matrices=data,
+            per_subject=per_subject,
+            threshold_type=threshold_type,
+            threshold=threshold,
+            thresholding_operator=thresholding_operator,
+            threshold_by_absolute_value=threshold_by_absolute_value,
+            return_absolute_value=return_absolute_value,
+            random_seed=random_seed,
+        )
+    # Binarized and real valued matrices.
+    return b, r
 
 
 def get_data_threshold_at_largest_average_difference_between_groups(
@@ -18,7 +72,7 @@ def get_data_threshold_at_largest_average_difference_between_groups(
     train_indices,
     threshold_type: DataThresholdingType,
     threshold: Union[float, int],
-    thresholding_operator: Optional[Union[operator.le, operator.ge]] = operator.ge,
+    thresholding_operator: Optional[Union[operator.le, operator.ge]],
 ):
     num_subjects, num_regions, _ = raw_fc_matrices.shape
 
@@ -34,13 +88,12 @@ def get_data_threshold_at_largest_average_difference_between_groups(
 
     # Compute mask.
     if threshold_type == DataThresholdingType.FIXED_THRESHOLD:
-        assert type(
-            threshold) == float, f'Used {type(threshold)} instead of `float` for {DataThresholdingType.FIXED_THRESHOLD}.'
-        mask = np.where(thresholding_operator(
-            avg_difference_matrix, threshold), True, False)
+        assert (
+            type(threshold) == float
+        ), f"Used {type(threshold)} instead of `float` for {DataThresholdingType.FIXED_THRESHOLD}."
+        mask = np.where(thresholding_operator(avg_difference_matrix, threshold), True, False)
     elif threshold_type == DataThresholdingType.KNN:
-        assert type(
-            threshold) == int, f'Used {type(threshold)} instead of `int` for {DataThresholdingType.KNN}.'
+        assert type(threshold) == int, f"Used {type(threshold)} instead of `int` for {DataThresholdingType.KNN}."
         mask = np.zeros((num_regions, num_regions), dtype=bool)
         # Take top `threshold` neighbors.
         if thresholding_operator is operator.ge:
@@ -68,9 +121,9 @@ def get_data_thresholded_by_sample_values(
     raw_fc_matrices,
     threshold_type: DataThresholdingType,
     threshold: Union[float, int],
-    thresholding_operator: Optional[Union[operator.le, operator.ge]] = operator.ge,
-    threshold_by_absolute_value: bool = True,
-    return_absolute_value: bool = False
+    thresholding_operator: Optional[Union[operator.le, operator.ge]],
+    threshold_by_absolute_value: bool,
+    return_absolute_value: bool,
 ):
     return _get_data_thresholded_by_matrix(
         raw_fc_matrices,
@@ -79,7 +132,7 @@ def get_data_thresholded_by_sample_values(
         threshold,
         thresholding_operator,
         threshold_by_absolute_value,
-        return_absolute_value
+        return_absolute_value,
     )
 
 
@@ -88,14 +141,15 @@ def get_data_thresholded_by_explicit_matrix(
     thresholding_matrix,
     threshold_type: DataThresholdingType,
     threshold: Union[float, int],
-    thresholding_operator: Optional[Union[operator.le, operator.ge]] = operator.ge,
-    threshold_by_absolute_value: bool = True,
-    return_absolute_value: bool = False
+    thresholding_operator: Optional[Union[operator.le, operator.ge]],
+    threshold_by_absolute_value: bool,
+    return_absolute_value: bool,
 ):
     # Expand over all samples.
     if len(thresholding_matrix.shape) == 2:
-        thresholding_matrix = np.repeat(np.expand_dims(
-            thresholding_matrix, 0), repeats=raw_fc_matrices.shape[0], axis=0)
+        thresholding_matrix = np.repeat(
+            np.expand_dims(thresholding_matrix, 0), repeats=raw_fc_matrices.shape[0], axis=0
+        )
 
     return _get_data_thresholded_by_matrix(
         raw_fc_matrices,
@@ -104,7 +158,7 @@ def get_data_thresholded_by_explicit_matrix(
         threshold,
         thresholding_operator,
         threshold_by_absolute_value,
-        return_absolute_value
+        return_absolute_value,
     )
 
 
@@ -113,22 +167,20 @@ def get_data_thresholded_by_random_matrix(
     per_subject: bool,
     threshold_type: DataThresholdingType,
     threshold: Union[float, int],
-    thresholding_operator: Optional[Union[operator.le, operator.ge]] = operator.ge,
-    threshold_by_absolute_value: bool = True,
-    return_absolute_value: bool = False,
-    random_seed: int = 42
+    thresholding_operator: Optional[Union[operator.le, operator.ge]],
+    threshold_by_absolute_value: bool,
+    return_absolute_value: bool,
+    random_seed: int,
 ):
     num_subjects, num_regions, _ = raw_fc_matrices.shape
 
     # Generate random thresholding matrix with values from [-1, 1].
     rng = np.random.default_rng(random_seed)
     if per_subject:
-        thresholding_matrix = 2 * \
-            rng.random((num_subjects, num_regions, num_regions)) - 1
+        thresholding_matrix = 2 * rng.random((num_subjects, num_regions, num_regions)) - 1
     else:
         thresholding_matrix = 2 * rng.random((1, num_regions, num_regions)) - 1
-        thresholding_matrix = np.repeat(
-            thresholding_matrix, repeats=num_subjects, axis=0)
+        thresholding_matrix = np.repeat(thresholding_matrix, repeats=num_subjects, axis=0)
 
     return _get_data_thresholded_by_matrix(
         raw_fc_matrices,
@@ -137,7 +189,7 @@ def get_data_thresholded_by_random_matrix(
         threshold,
         thresholding_operator,
         threshold_by_absolute_value,
-        return_absolute_value
+        return_absolute_value,
     )
 
 
@@ -148,23 +200,21 @@ def _get_data_thresholded_by_matrix(
     threshold: Union[float, int],
     thresholding_operator: Optional[Union[operator.le, operator.ge]],
     threshold_by_absolute_value: bool,
-    return_absolute_value: bool
+    return_absolute_value: bool,
 ):
     num_subjects, num_regions, _ = raw_fc_matrices.shape
 
-    fc = np.abs(
-        thresholding_matrix) if threshold_by_absolute_value else thresholding_matrix
-    raw_fc_matrices = np.abs(
-        raw_fc_matrices) if return_absolute_value else raw_fc_matrices
+    fc = np.abs(thresholding_matrix) if threshold_by_absolute_value else thresholding_matrix
+    raw_fc_matrices = np.abs(raw_fc_matrices) if return_absolute_value else raw_fc_matrices
 
     # Compute mask.
     if threshold_type == DataThresholdingType.FIXED_THRESHOLD:
-        assert type(
-            threshold) == float, f'Used {type(threshold)} instead of `float` for {DataThresholdingType.FIXED_THRESHOLD}.'
+        assert (
+            type(threshold) == float
+        ), f"Used {type(threshold)} instead of `float` for {DataThresholdingType.FIXED_THRESHOLD}."
         mask = np.where(thresholding_operator(fc, threshold), True, False)
     elif threshold_type == DataThresholdingType.KNN:
-        assert type(
-            threshold) == int, f'Used {type(threshold)} instead of `int` for {DataThresholdingType.KNN}.'
+        assert type(threshold) == int, f"Used {type(threshold)} instead of `int` for {DataThresholdingType.KNN}."
         mask = np.zeros((num_subjects, num_regions, num_regions), dtype=bool)
 
         # Take top `threshold` neighbors.
@@ -183,32 +233,3 @@ def _get_data_thresholded_by_matrix(
     real_fc_matrices = np.where(mask, raw_fc_matrices, 0)
 
     return binary_fc_matrices, real_fc_matrices
-
-
-if __name__ == "__main__":
-    raw = np.array(
-        [
-            [[1, 1, 1, 2], [2, 1, 1, 2], [1, 2, 3, 4], [-1, 1, 0, -2]],
-            [[2, 2, 2, 2], [2, 1, 1, 2], [1, 2, 3, 4], [-1, 1, 0, -2]],
-            [[1, 1, 1, 2], [2, 1, 1, 2], [1, 2, 3, 4], [-1, 1, 0, -2]],
-            [[1, 1, 1, 2000], [2, 1, 1, 2], [1, 2, 3, 4], [-1, 1, 0, -2]]
-        ]
-    )
-
-    # th_matrix =  np.array(
-    #     [
-    #         [[1, 0, 0, 0], [2, 1, 1, 2], [1, 2, 3, 4], [-1, 1, 0, -2]],
-    #         [[1, 2, 0, 0], [2, 1, 1, 2], [1, 2, 3, 4], [-1, 1, 0, 2]],
-    #         [[1, 0, 3, 0], [2, 1, 1, 2], [1, 2, 3, 4], [-1, 1, 0, -2]]
-    #     ]
-    # )
-
-    binary, real = get_data_threshold_at_largest_average_difference_between_groups(
-        raw,
-        np.array([1, 1, 0, 0]),
-        np.array([0, 1, 2]),
-        DataThresholdingType.KNN,
-        3,
-        operator.ge
-    )
-    print(real)
