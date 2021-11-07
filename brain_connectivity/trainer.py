@@ -12,6 +12,7 @@ from .evaluation import ModelEvaluation
 
 
 class Trainer:
+    # TODO: Write class docstring.
     def __init__(
         self,
         log_folder,
@@ -34,7 +35,9 @@ class Trainer:
         self.valloader = valloader
 
         self.optimizer = optimizer(model.parameters(), **optimizer_kwargs)
-        self.scheduler = scheduler(self.optimizer, **scheduler_kwargs) if scheduler is not None else None
+        self.scheduler = (
+            scheduler(self.optimizer, **scheduler_kwargs) if scheduler is not None else None
+        )
         self.criterion = criterion
 
         self.writer = SummaryWriter(log_folder)
@@ -79,10 +82,6 @@ class Trainer:
             if (epoch + 1) % self.fc_matrix_plot_frequency == 0:
                 self.model.plot_fc_matrix(epoch, sublayer=self.fc_matrix_plot_sublayer)
 
-            # Update learning rate.
-            if self.scheduler is not None:
-                self.scheduler.step()
-
     def _epoch_step(self, dataloader: DataLoader, epoch: int, dataset: str, evaluate: bool):
         running_loss = 0.0
         if dataset == "val":
@@ -93,7 +92,7 @@ class Trainer:
             raise ValueError("Dataset must be either 'val' or 'train'")
 
         for data in dataloader:
-            loss, outputs = self._model_step(data, backpropagate=not evaluate)
+            loss, outputs = self._model_step(data, backpropagate=dataset == "train")
             running_loss += loss
 
             # Calculate evaluation metrics.
@@ -102,6 +101,10 @@ class Trainer:
                 # labels = torch.nonzero(data.y, as_tuple=True)[1]
                 labels = data.y.view(-1)
                 self.evaluation.evaluate(predicted, labels)
+
+        # Update learning rate.
+        if self.scheduler is not None and dataset == "train":
+            self.scheduler.step()
 
         epoch_loss = running_loss / len(dataloader)
         self.writer.add_scalar(f"{dataset} loss", epoch_loss, epoch)
