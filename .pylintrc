@@ -3,3 +3,4 @@ generated-members=torch.*
 
 [MESSAGES CONTROL]
 disable=logging-fstring-interpolation
+disable=too-many-arguments
