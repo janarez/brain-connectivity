@@ -68,10 +68,10 @@ class FunctionalConnectivityDataset:
         """
         Logs all important information about used dataset to a file.
         """
-        # try:
-        #     os.makedirs(self.log_folder, exist_ok=False)
-        # except FileExistsError as e:
-        #     raise ValueError(f"Run experiment with same NAME and ID ({self.log_folder}).") from e
+        try:
+            os.makedirs(self.log_folder, exist_ok=False)
+        except FileExistsError as e:
+            raise ValueError(f"Run experiment with same NAME and ID ({self.log_folder}).") from e
 
         with open(os.path.join(self.log_folder, "dataset.txt"), "w", encoding="utf-8") as f:
             f.write(self.__dict__.__str__())
