@@ -8,7 +8,7 @@ from torch.utils.tensorboard.writer import SummaryWriter
 from torch_geometric.data.dataloader import DataLoader
 from torchinfo.torchinfo import summary
 
-from .evaluation import ModelEvaluation
+from .evaluation import ModelEvaluation, log_results
 
 
 class Trainer:
@@ -81,6 +81,11 @@ class Trainer:
             # Plot connectivity matrix.
             if (epoch + 1) % self.fc_matrix_plot_frequency == 0:
                 self.model.plot_fc_matrix(epoch, sublayer=self.fc_matrix_plot_sublayer)
+
+        # Save and return results.
+        log_results(self.evaluation.train_results, self.log_folder, "train_results")
+        log_results(self.evaluation.val_results, self.log_folder, "val_results")
+        return self.evaluation.train_results, self.evaluation.val_results
 
     def _epoch_step(self, dataloader: DataLoader, epoch: int, dataset: str, evaluate: bool):
         running_loss = 0.0
