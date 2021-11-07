@@ -93,7 +93,9 @@ def get_data_threshold_at_largest_average_difference_between_groups(
         ), f"Used {type(threshold)} instead of `float` for {DataThresholdingType.FIXED_THRESHOLD}."
         mask = np.where(thresholding_operator(avg_difference_matrix, threshold), True, False)
     elif threshold_type == DataThresholdingType.KNN:
-        assert type(threshold) == int, f"Used {type(threshold)} instead of `int` for {DataThresholdingType.KNN}."
+        assert (
+            type(threshold) == int
+        ), f"Used {type(threshold)} instead of `int` for {DataThresholdingType.KNN}."
         mask = np.zeros((num_regions, num_regions), dtype=bool)
         # Take top `threshold` neighbors.
         if thresholding_operator is operator.ge:
@@ -214,7 +216,9 @@ def _get_data_thresholded_by_matrix(
         ), f"Used {type(threshold)} instead of `float` for {DataThresholdingType.FIXED_THRESHOLD}."
         mask = np.where(thresholding_operator(fc, threshold), True, False)
     elif threshold_type == DataThresholdingType.KNN:
-        assert type(threshold) == int, f"Used {type(threshold)} instead of `int` for {DataThresholdingType.KNN}."
+        assert (
+            type(threshold) == int
+        ), f"Used {type(threshold)} instead of `int` for {DataThresholdingType.KNN}."
         mask = np.zeros((num_subjects, num_regions, num_regions), dtype=bool)
 
         # Take top `threshold` neighbors.
