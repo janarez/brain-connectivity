@@ -67,6 +67,7 @@ def iaaft_surrogates(timeseries: np.array, upsample: int, maxiter=1000, atol=1e-
     ts_surrogates = np.empty((upsample * samples, regions, ts_length))
 
     # Each sample get `upsample` new timeseries for each region.
+    assert upsample > 0, f"Must `upsample` by positive integer, got {upsample}."
     for sample in range(samples):
         for i in range(upsample):
             for region in range(regions):
