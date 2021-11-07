@@ -2,15 +2,23 @@ import logging
 import os
 import pickle
 from functools import partial
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
 import torch
+from scipy import stats
 from sklearn.model_selection import StratifiedKFold
 from torch_geometric.data import Data, DataLoader
 
-from .data_utils import DenseDataset, dotdict, identity_matrix, zeroth_axis_sample
+from .data_utils import (
+    DenseDataset,
+    aaft_surrogates,
+    dotdict,
+    iaaft_surrogates,
+    identity_matrix,
+    zeroth_axis_sample,
+)
 from .enums import CorrelationType, NodeFeatures
 from .fc_matrix import create_connectivity_matrices
 
@@ -27,6 +35,8 @@ class FunctionalConnectivityDataset:
         device,
         dataframe_with_subjects: str = "patients-cleaned.csv",
         target_column: str = "target",
+        upsample_ts: Optional[int] = None,
+        upsample_ts_method: Optional[str] = None,
         correlation_type: CorrelationType = CorrelationType.PEARSON,
         node_features: NodeFeatures = NodeFeatures.FC_MATRIX_ROW,
         test_size: Union[int, float] = 50,
@@ -40,7 +50,9 @@ class FunctionalConnectivityDataset:
         self.device = device
 
         df = pd.read_csv(os.path.join(self.data_folder, dataframe_with_subjects), index_col=0)
-        self.raw_fc_matrices = self._read_raw_matrices(correlation_type)
+        self.raw_fc_matrices, self.raw_fc_surrogates = self._get_raw_matrices(
+            correlation_type, upsample_ts, upsample_ts_method
+        )
         self.targets = df[target_column].values
 
         self.num_subjects, self.num_regions, _ = self.raw_fc_matrices.shape
@@ -76,13 +88,75 @@ class FunctionalConnectivityDataset:
         with open(os.path.join(self.log_folder, "dataset.txt"), "w", encoding="utf-8") as f:
             f.write(self.__dict__.__str__())
 
-    def _read_raw_matrices(self, correlation_type: CorrelationType):
-        path = os.path.join(self.data_folder, f"fc-{correlation_type}.pickle")
-        with open(path, "rb") as f_rb:
-            f = pickle.load(f_rb)
+    def _get_raw_matrices(self, correlation_type, upsample_ts, upsample_ts_method):
+        # Check for cached pickles.
+        path = os.path.join(self.data_folder, "cache", f"raw_matrices_{correlation_type}.pickle")
+        surr_path = (
+            None
+            if upsample_ts is None
+            else os.path.join(
+                self.data_folder,
+                "cache",
+                f"raw_surrogates_{correlation_type}_{upsample_ts}_{upsample_ts_method}.pickle",
+            )
+        )
+        raw_matrices = None
+        raw_surrogates = None
 
-        logging.debug(f"Loaded dataset with shape {f.shape}")
-        return f
+        # Check cache for original data.
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                raw_matrices = pickle.load(f)
+            logging.info(f"Loaded {path} from cache.")
+            # Return early if not upsampling.
+            if upsample_ts is None:
+                return raw_matrices, None
+
+        # Optionally check cache for upsampled data.
+        if upsample_ts is not None and os.path.exists(surr_path):
+            with open(surr_path, "rb") as f:
+                raw_surrogates = pickle.load(f)
+            logging.info(f"Loaded {surr_path} from cache.")
+            # Return if all data has been loadede.
+            if raw_matrices is None:
+                return raw_matrices, raw_surrogates
+
+        # Otherwise compute from raw timeseries data.
+        with open(os.path.join(self.data_folder, f"timeseries.pickle"), "rb") as f:
+            ts = pickle.load(f)
+            logging.info(f"Loaded raw timeseries dataset with shape {ts.shape}")
+
+        # Not even non-upsampled data were cached.
+        if raw_matrices is None:
+            raw_matrices = self._calculate_correlation_matrix(correlation_type, ts)
+            # Cache.
+            with open(path, "wb") as f:
+                pickle.dump(f)
+        # Optionally upsample timeseries.
+        if upsample_ts is not None:
+            if upsample_ts_method == "aaft":
+                surrogates = aaft_surrogates(ts, upsample=upsample_ts)
+            elif upsample_ts_method == "iaaft":
+                surrogates = iaaft_surrogates(ts, upsample=upsample_ts)
+            else:
+                raise ValueError(
+                    f"Got {upsample_ts_method} and {upsample_ts}, accepting 'aaft' or 'iaaft', plus positive int."
+                )
+            raw_surrogates = self._calculate_correlation_matrix(correlation_type, surrogates)
+            # Cache.
+            with open(surr_path, "wb") as f:
+                pickle.dump(f)
+
+        return raw_matrices, raw_surrogates
+
+    def _calculate_correlation_matrix(self, correlation_type, timeseries):
+        # Placeholder correlation matrices.
+        num_subjects, num_regions, _ = timeseries.shape
+        raw_matrices = np.empty((num_subjects, num_regions, num_regions))
+        for i, ts in enumerate(timeseries):
+            # TODO: Support partial corr via pinqouin's `pcorr`.
+            raw_matrices[i] = pd.DataFrame(ts).T.corr(method=correlation_type.value)
+        return raw_matrices
 
     def _dev_test_split(self, test_size):
         patient_indexes = np.argwhere(self.targets == 1).reshape(-1)
