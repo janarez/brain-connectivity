@@ -1,8 +1,11 @@
 """
-Module contains single class for calculating model metrics and logging them to tensorboard.
+Module contains class for calculating model metrics and logging them to tensorboard,
+plus related util functions.
 """
+import os
 from collections import defaultdict
 
+import numpy as np
 from torch.utils.tensorboard.writer import SummaryWriter
 
 
@@ -64,3 +67,27 @@ class ModelEvaluation:
         self.fn = 0
         # How many times was evaluation run?
         self.total = 0
+
+
+def aggregate_results(results):
+    """
+    Averages over list of dictionaries with results.
+    """
+    agg_results = {}
+    for k in results[0].keys():
+        val_list = [res[k] for res in results]
+        # Take mean and standard deviation across runs.
+        agg_results[k] = [*zip(np.mean(val_list, axis=0), np.std(val_list, axis=0))]
+
+    return agg_results
+
+
+def log_results(results, log_folder, log_filename):
+    """
+    Writes dictionary with results to a file.
+    """
+    with open(os.path.join(log_folder, f"{log_filename}.txt"), "w", encoding="utf-8") as f:
+        for key, value_list in results.items():
+            f.write(f"{key}\n")
+            for value in value_list:
+                f.write(f"{value}\n")
