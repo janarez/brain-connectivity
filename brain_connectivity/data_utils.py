@@ -4,6 +4,7 @@ from typing import List
 
 import numpy as np
 import torch
+from torch.utils.data.dataloader import default_collate
 from torch.utils.data.dataset import Dataset
 
 from ..scripts.nolitsa import surrogates
@@ -14,6 +15,12 @@ class dotdict(dict):
     __getattr__ = dict.get
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
+
+
+def dotdict_collate(batch):
+    "Allow dot access to collated dictionary."
+    elem = batch[0]
+    return dotdict({key: default_collate([d[key] for d in batch]) for key in elem})
 
 
 class DenseDataset(Dataset):
