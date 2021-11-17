@@ -7,14 +7,14 @@ from typing import Optional, Union
 import numpy as np
 import pandas as pd
 import torch
+import torch_geometric
 from scipy import stats
 from sklearn.model_selection import StratifiedKFold
-from torch_geometric.data import Data, DataLoader
 
 from .data_utils import (
     DenseDataset,
     aaft_surrogates,
-    dotdict,
+    dotdict_collate,
     iaaft_surrogates,
     identity_matrix,
     zeroth_axis_sample,
@@ -49,7 +49,9 @@ class FunctionalConnectivityDataset:
         self.data_folder = data_folder
         self.device = device
 
-        df = pd.read_csv(os.path.join(self.data_folder, dataframe_with_subjects), index_col=0)
+        df = pd.read_csv(
+            os.path.join(self.data_folder, dataframe_with_subjects), index_col=0
+        )
         self.raw_fc_matrices, self.raw_fc_surrogates = self._get_raw_matrices(
             correlation_type, upsample_ts, upsample_ts_method
         )
@@ -67,10 +69,14 @@ class FunctionalConnectivityDataset:
 
         # Split data into hidden test set and dev (train+validation) set.
         self.num_folds = num_folds
-        self.skf = StratifiedKFold(n_splits=num_folds, random_state=random_seed, shuffle=True)
-        self.dev_indices, self.test_indices, self.dev_fold_iterator = self._dev_test_split(
-            test_size=test_size
+        self.skf = StratifiedKFold(
+            n_splits=num_folds, random_state=random_seed, shuffle=True
         )
+        (
+            self.dev_indices,
+            self.test_indices,
+            self.dev_fold_iterator,
+        ) = self._dev_test_split(test_size=test_size)
         self.train_indices, self.val_indices = None, None
 
         # Save to file before training.
@@ -83,14 +89,22 @@ class FunctionalConnectivityDataset:
         try:
             os.makedirs(self.log_folder, exist_ok=False)
         except FileExistsError as e:
-            raise ValueError(f"Run experiment with same NAME and ID ({self.log_folder}).") from e
+            raise ValueError(
+                f"Run experiment with same NAME and ID ({self.log_folder})."
+            ) from e
 
-        with open(os.path.join(self.log_folder, "dataset.txt"), "w", encoding="utf-8") as f:
+        with open(
+            os.path.join(self.log_folder, "dataset.txt"), "w", encoding="utf-8"
+        ) as f:
             f.write(self.__dict__.__str__())
 
-    def _get_raw_matrices(self, correlation_type, upsample_ts, upsample_ts_method):
+    def _get_raw_matrices(
+        self, correlation_type, upsample_ts, upsample_ts_method
+    ):
         # Check for cached pickles.
-        path = os.path.join(self.data_folder, "cache", f"raw_matrices_{correlation_type}.pickle")
+        path = os.path.join(
+            self.data_folder, "cache", f"raw_matrices_{correlation_type}.pickle"
+        )
         surr_path = (
             None
             if upsample_ts is None
@@ -122,16 +136,20 @@ class FunctionalConnectivityDataset:
                 return raw_matrices, raw_surrogates
 
         # Otherwise compute from raw timeseries data.
-        with open(os.path.join(self.data_folder, f"timeseries.pickle"), "rb") as f:
+        with open(
+            os.path.join(self.data_folder, f"timeseries.pickle"), "rb"
+        ) as f:
             ts = pickle.load(f)
             logging.info(f"Loaded raw timeseries dataset with shape {ts.shape}")
 
         # Not even non-upsampled data were cached.
         if raw_matrices is None:
-            raw_matrices = self._calculate_correlation_matrix(correlation_type, ts)
+            raw_matrices = self._calculate_correlation_matrix(
+                correlation_type, ts
+            )
             # Cache.
             with open(path, "wb") as f:
-                pickle.dump(f)
+                pickle.dump(raw_matrices, f)
         # Optionally upsample timeseries.
         if upsample_ts is not None:
             if upsample_ts_method == "aaft":
@@ -142,10 +160,12 @@ class FunctionalConnectivityDataset:
                 raise ValueError(
                     f"Got {upsample_ts_method} and {upsample_ts}, accepting 'aaft' or 'iaaft', plus positive int."
                 )
-            raw_surrogates = self._calculate_correlation_matrix(correlation_type, surrogates)
+            raw_surrogates = self._calculate_correlation_matrix(
+                correlation_type, surrogates
+            )
             # Cache.
             with open(surr_path, "wb") as f:
-                pickle.dump(f)
+                pickle.dump(raw_surrogates, f)
 
         return raw_matrices, raw_surrogates
 
@@ -155,7 +175,9 @@ class FunctionalConnectivityDataset:
         raw_matrices = np.empty((num_subjects, num_regions, num_regions))
         for i, ts in enumerate(timeseries):
             # TODO: Support partial corr via pinqouin's `pcorr`.
-            raw_matrices[i] = pd.DataFrame(ts).T.corr(method=correlation_type.value)
+            raw_matrices[i] = pd.DataFrame(ts).T.corr(
+                method=correlation_type.value
+            )
         return raw_matrices
 
     def _dev_test_split(self, test_size):
@@ -165,28 +187,49 @@ class FunctionalConnectivityDataset:
         if type(test_size) == float:
             test_size = round(self.num_subjects * test_size)
 
-        test_patients = self.rng.choice(patient_indexes, size=test_size // 2, replace=False)
-        test_controls = self.rng.choice(control_indexes, size=test_size // 2, replace=False)
+        test_patients = self.rng.choice(
+            patient_indexes, size=test_size // 2, replace=False
+        )
+        test_controls = self.rng.choice(
+            control_indexes, size=test_size // 2, replace=False
+        )
 
         test_indices = np.hstack([test_patients, test_controls])
-        dev_indices = np.array(list(set(range(self.num_subjects)) - set(test_indices)))
+        dev_indices = np.array(
+            list(set(range(self.num_subjects)) - set(test_indices))
+        )
 
         assert (
             len(test_indices) + len(dev_indices) == self.num_subjects
         ), "Dataset splitting created / lost samples."
         logging.debug(f"Test size: {len(test_indices)}")
-        logging.debug(f"Test group 1 percantage: {sum(test_indices) / len(test_indices) * 100:.2f}")
+        logging.debug(
+            f"Test group 1 percantage: {sum(test_indices) / len(test_indices) * 100:.2f}"
+        )
         logging.debug(f"Dev size: {len(dev_indices)}")
-        logging.debug(f"Dev group 1 percantage: {sum(dev_indices) / len(dev_indices) * 100:.2f}")
+        logging.debug(
+            f"Dev group 1 percantage: {sum(dev_indices) / len(dev_indices) * 100:.2f}"
+        )
 
-        # Save split indices, along with stratified training iterator.
-        dev_fold_iterator = self.skf.split(dev_indices, self.targets[dev_indices])
+        # Save split indices, along with stratified training enumerated iterator.
+        dev_fold_iterator = enumerate(
+            self.skf.split(dev_indices, self.targets[dev_indices])
+        )
         return dev_indices, test_indices, dev_fold_iterator
 
-    def _get_node_features_function(self):
+    def _get_node_features_function(self, sur=False):
+        """
+        Returns partial function that get features for nodes when passed list of their indices.
+
+        Args:
+            sur: Pass `True` if you need node features for surrogates.
+        """
         # Each node contains its row of the raw correlation matrix.
         if self.node_features == NodeFeatures.FC_MATRIX_ROW:
-            node_features_function = partial(zeroth_axis_sample, self.raw_fc_matrices)
+            node_features_function = partial(
+                zeroth_axis_sample,
+                self.raw_fc_matrices if not sur else self.raw_fc_surrogates,
+            )
         # Each node contains one hot encoding of its brain region id.
         elif self.node_features == NodeFeatures.ONE_HOT_REGION:
             node_features_function = partial(identity_matrix, self.num_regions)
@@ -198,10 +241,31 @@ class FunctionalConnectivityDataset:
 
     def _get_dense_dataset(self, indices):
         node_features_function = self._get_node_features_function()
-        return DenseDataset(
+        orig_dataset = DenseDataset(
             node_features_function(indices).to(torch.float32).to(self.device),
-            torch.from_numpy(self.targets[indices]).to(torch.int64).to(self.device),
+            torch.from_numpy(self.targets[indices])
+            .to(torch.int64)
+            .to(self.device),
         )
+
+        # Append surrogate data.
+        if self.raw_fc_surrogates is not None:
+            node_features_function = self._get_node_features_function(sur=True)
+            sur_dataset = DenseDataset(
+                node_features_function(indices)
+                # Merge index and upsample dims into one.
+                .view(-1, self.num_regions, self.num_regions)
+                .to(torch.float32)
+                .to(self.device),
+                torch.from_numpy(self.targets[indices])
+                # Index dim corresponds to label, but must be repeated `upsample` times.
+                .repeat(self.raw_fc_surrogates.shape[1], dim=1)
+                .to(torch.int64)
+                .to(self.device),
+            )
+            return orig_dataset + sur_dataset
+
+        return orig_dataset
 
     def _get_geometric_dataset(self, indices):
         """
@@ -223,21 +287,62 @@ class FunctionalConnectivityDataset:
             train_indices=self.train_indices,
         )
         node_features_function = self._get_node_features_function()
-        return [
-            Data(
-                x=node_features_function([i]).squeeze(0),
-                edge_index=torch.from_numpy(np.asarray(np.nonzero(binary_fc_matrices[i]))).to(
-                    torch.int64
-                ),
-                y=torch.tensor([target], dtype=torch.int64),  # pylint: disable=not-callable
+        orig_dataset = [
+            torch_geometric.Data(
+                # Remove the batch dim.
+                x=node_features_function([i])
+                .squeeze(0)
+                .to(torch.float32)
+                .to(self.device),
+                # All nonzero coordinate pairs, x and y axis separately.
+                edge_index=torch.from_numpy(
+                    np.asarray(np.nonzero(binary_fc_matrices[i]))
+                )
+                .to(torch.int64)
+                .to(self.device),
+                y=torch.tensor(
+                    [target], dtype=torch.int64, device=self.device
+                ),  # pylint: disable=not-callable
             ).to(self.device)
             for target, i in zip(self.targets[indices], indices)
         ]
 
+        if self.raw_fc_surrogates is not None:
+            # TODO: How to convert to matrices?
+            binary_fc_surrogates, _ = create_connectivity_matrices(
+                self.raw_fc_surrogates.reshape(
+                    -1, self.num_regions, self.num_regions
+                ),
+                **self.geometric_dataset_kwargs,
+                binary_targets=self.targets,
+                # Only training info, no val / test data.
+                train_indices=self.train_indices,
+            )
+            node_features_function = self._get_node_features_function(sur=True)
+            sur_dataset = [
+                torch_geometric.Data(
+                    x=x.to(torch.float32).to(self.device),
+                    edge_index=edge_index.to(torch.int64).to(self.device),
+                    y=torch.tensor(
+                        [target], dtype=torch.int64, device=self.device
+                    ),  # pylint: disable=not-callable
+                ).to(self.device)
+                for target, i in zip(self.targets[indices], indices)
+                for x, edge_index in zip(
+                    node_features_function([i])[0],
+                    torch.from_numpy(
+                        np.asarray(np.nonzero(binary_fc_surrogates[i]))
+                    ),
+                )
+            ]
+            return orig_dataset + sur_dataset
+
+        return orig_dataset
+
     @property
     def geometric_trainloader(self):
         "Train dataloader with data for graph neural network."
-        return DataLoader(
+        return torch_geometric.data.DataLoader(
             self._get_geometric_dataset(self.train_indices),
             batch_size=self.batch_size,
             shuffle=True,
@@ -246,14 +351,16 @@ class FunctionalConnectivityDataset:
     @property
     def geometric_valloader(self):
         "Validation dataloader with data for graph neural network."
-        return DataLoader(
-            self._get_geometric_dataset(self.val_indices), batch_size=self.batch_size, shuffle=False
+        return torch_geometric.data.DataLoader(
+            self._get_geometric_dataset(self.val_indices),
+            batch_size=self.batch_size,
+            shuffle=False,
         )
 
     @property
     def geometric_testloader(self):
         "Test dataloader with data for graph neural network."
-        return DataLoader(
+        return torch_geometric.data.DataLoader(
             self._get_geometric_dataset(self.test_indices),
             batch_size=self.batch_size,
             shuffle=False,
@@ -262,45 +369,31 @@ class FunctionalConnectivityDataset:
     @property
     def dense_trainloader(self):
         "Train dataloader with data for dense neural network."
-        return list(
-            map(
-                dotdict,
-                DataLoader(
-                    self._get_dense_dataset(self.train_indices),
-                    batch_size=self.batch_size,
-                    shuffle=True,
-                ),
-            )
+        return torch.utils.data.dataloader.DataLoader(
+            self._get_dense_dataset(self.train_indices),
+            batch_size=self.batch_size,
+            shuffle=True,
+            collate_fn=dotdict_collate,
         )
 
     @property
     def dense_valloader(self):
         "Validation dataloader with data for dense neural network."
-        # We need to map to `dotdict` here,
-        # because `DataLoader` always returns plain dict from batch collating.
-        return list(
-            map(
-                dotdict,
-                DataLoader(
-                    self._get_dense_dataset(self.val_indices),
-                    batch_size=self.batch_size,
-                    shuffle=False,
-                ),
-            )
+        return torch.utils.data.dataloader.DataLoader(
+            self._get_dense_dataset(self.val_indices),
+            batch_size=self.batch_size,
+            shuffle=False,
+            collate_fn=dotdict_collate,
         )
 
     @property
     def dense_testloader(self):
         "Test dataloader with data for dense neural network."
-        return list(
-            map(
-                dotdict,
-                DataLoader(
-                    self._get_dense_dataset(self.test_indices),
-                    batch_size=self.batch_size,
-                    shuffle=False,
-                ),
-            )
+        return torch.utils.data.dataloader.DataLoader(
+            self._get_dense_dataset(self.test_indices),
+            batch_size=self.batch_size,
+            shuffle=False,
+            collate_fn=dotdict_collate,
         )
 
     def next_fold(self):
@@ -311,7 +404,7 @@ class FunctionalConnectivityDataset:
         To be used in a `while` cycle.
         """
         try:
-            train_split, val_split = next(self.dev_fold_iterator)
+            i, (train_split, val_split) = next(self.dev_fold_iterator)
             self.train_indices, self.val_indices = (
                 self.dev_indices[train_split],
                 self.dev_indices[val_split],
@@ -319,6 +412,5 @@ class FunctionalConnectivityDataset:
         except StopIteration:
             return False
 
-        # TODO: Log correct fold ID.
-        logging.info(f"Generated fold {1}/{self.num_folds}")
+        logging.info(f"Generated fold {i+1}/{self.num_folds}")
         return True
