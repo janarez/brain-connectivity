@@ -1,4 +1,5 @@
 import pickle
+from functools import partial
 from typing import List
 
 import numpy as np
@@ -30,7 +31,7 @@ class DenseDataset(Dataset):
 
 
 def zeroth_axis_sample(matrix: np.array, i: List[int]):
-    return torch.from_numpy(matrix[i]).to(torch.float32)
+    return torch.from_numpy(matrix[i])
 
 
 def identity_matrix(size: int, i: List[int]):
@@ -42,18 +43,7 @@ with open("../pickles/timeseries.pickle", "rb") as f:
 
 
 def aaft_surrogates(timeseries: np.array, upsample: int):
-    samples, regions, ts_length = timeseries.shape
-    # Placeholder array.
-    ts_surrogates = np.empty((upsample * samples, regions, ts_length))
-
-    # Each sample get `upsample` new timeseries for each region.
-    for sample in range(samples):
-        for i in range(upsample):
-            for region in range(regions):
-                ts_surrogates[sample * upsample + i][region] = surrogates.aaft(
-                    timeseries[sample][region]
-                )
-    return ts_surrogates
+    return _get_surrogates(timeseries, upsample, surrogates.aaft)
 
 
 def iaaft_surrogates(timeseries: np.array, upsample: int, maxiter=1000, atol=1e-8, rtol=1e-10):
@@ -62,16 +52,19 @@ def iaaft_surrogates(timeseries: np.array, upsample: int, maxiter=1000, atol=1e-
 
     Note: The default parameters of `surrogates.iaaft` are taken from `nolitsa` module.
     """
+    sur_func = partial(surrogates.iaaft, maxiter=maxiter, atol=atol, rtol=rtol)
+    return _get_surrogates(timeseries, upsample, sur_func)[..., 0]
+
+
+def _get_surrogates(timeseries, upsample, sur_func):
     samples, regions, ts_length = timeseries.shape
     # Placeholder array.
-    ts_surrogates = np.empty((upsample * samples, regions, ts_length))
+    ts_surrogates = np.empty((upsample, samples, regions, ts_length))
 
     # Each sample get `upsample` new timeseries for each region.
     assert upsample > 0, f"Must `upsample` by positive integer, got {upsample}."
     for sample in range(samples):
         for i in range(upsample):
             for region in range(regions):
-                ts_surrogates[sample * upsample + i][region] = surrogates.iaaft(
-                    timeseries[sample][region], maxiter=maxiter, atol=atol, rtol=rtol
-                )[0]
+                ts_surrogates[sample][i][region] = sur_func(timeseries[sample][region])[0]
     return ts_surrogates
