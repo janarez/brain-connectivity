@@ -4,10 +4,9 @@ from typing import List
 
 import numpy as np
 import torch
+from nolitsa import surrogates
 from torch.utils.data.dataloader import default_collate
 from torch.utils.data.dataset import Dataset
-
-from ..scripts.nolitsa import surrogates
 
 
 class dotdict(dict):
@@ -20,7 +19,9 @@ class dotdict(dict):
 def dotdict_collate(batch):
     "Allow dot access to collated dictionary."
     elem = batch[0]
-    return dotdict({key: default_collate([d[key] for d in batch]) for key in elem})
+    return dotdict(
+        {key: default_collate([d[key] for d in batch]) for key in elem}
+    )
 
 
 class DenseDataset(Dataset):
@@ -53,7 +54,9 @@ def aaft_surrogates(timeseries: np.array, upsample: int):
     return _get_surrogates(timeseries, upsample, surrogates.aaft)
 
 
-def iaaft_surrogates(timeseries: np.array, upsample: int, maxiter=1000, atol=1e-8, rtol=1e-10):
+def iaaft_surrogates(
+    timeseries: np.array, upsample: int, maxiter=1000, atol=1e-8, rtol=1e-10
+):
     """
     Upsamples each timeserie `upsample` times using the "iaaft" method.
 
@@ -73,5 +76,7 @@ def _get_surrogates(timeseries, upsample, sur_func):
     for sample in range(samples):
         for i in range(upsample):
             for region in range(regions):
-                ts_surrogates[sample][i][region] = sur_func(timeseries[sample][region])[0]
+                ts_surrogates[sample][i][region] = sur_func(
+                    timeseries[sample][region]
+                )[0]
     return ts_surrogates
