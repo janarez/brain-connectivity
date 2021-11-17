@@ -1,10 +1,7 @@
 /.venv/
 /.vscode/
 
-/data/*.csv
-/data/*.mat
-/data/*.pickle
-
+/data/
 /pickles/
 /runs/
 
@@ -16,8 +13,3 @@ __pycache__/
 meeting-notes.md
 progress-notes.md
 research-notes.md
-
-# Subset of https://github.com/jajcayn/pyclits for surrogates.
-/scripts/pyclits
-# Interactive script for playing purposes.
-/scripts/playground.py
