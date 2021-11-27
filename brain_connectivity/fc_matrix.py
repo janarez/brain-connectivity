@@ -64,7 +64,7 @@ def create_connectivity_matrices(
     return b, r
 
 
-def get_average_train_difference_between_groups_matrix(
+def get_matrix_of_avg_diff_between_groups(
     raw_fc_matrices,
     binary_targets,
     train_indices,

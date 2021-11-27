@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import torch
 import torch_geometric
-from scipy import stats
 from sklearn.model_selection import StratifiedKFold
 
 from .data_utils import (
@@ -19,10 +18,10 @@ from .data_utils import (
     identity_matrix,
     zeroth_axis_sample,
 )
-from .enums import CorrelationType, NodeFeatures
+from .enums import CorrelationType, NodeFeatures, ThresholdingFunction
 from .fc_matrix import (
     create_connectivity_matrices,
-    get_average_train_difference_between_groups_matrix,
+    get_matrix_of_avg_diff_between_groups,
 )
 
 
@@ -42,7 +41,6 @@ class FunctionalConnectivityDataset:
         upsample_ts_method: Optional[str] = None,
         correlation_type: CorrelationType = CorrelationType.PEARSON,
         node_features: NodeFeatures = NodeFeatures.FC_MATRIX_ROW,
-        test_size: Union[int, float] = 50,
         batch_size: int = 8,
         num_folds: int = 7,
         random_seed: int = 42,
@@ -69,17 +67,14 @@ class FunctionalConnectivityDataset:
         self.node_features = node_features
         self.geometric_kwargs = geometric_kwargs
 
-        # Split data into hidden test set and dev (train+validation) set.
-        self.num_folds = num_folds
+        # Stratified spliting of dataset.
         self.skf = StratifiedKFold(
             n_splits=num_folds, random_state=random_seed, shuffle=True
         )
-        (
-            self.dev_indices,
-            self.test_indices,
-            self.dev_fold_iterator,
-        ) = self._dev_test_split(test_size=test_size)
-        self.train_indices, self.val_indices = None, None
+        # Iterator over outter CV: assessment of model performance.
+        self.outer_cv_iterator = enumerate(
+            self.skf.split(np.empty(shape=self.num_subjects), self.targets)
+        )
 
         # Save to file before training.
         self._log()
@@ -182,43 +177,6 @@ class FunctionalConnectivityDataset:
             )
         return raw_matrices
 
-    def _dev_test_split(self, test_size):
-        patient_indexes = np.argwhere(self.targets == 1).reshape(-1)
-        control_indexes = np.argwhere(self.targets == 0).reshape(-1)
-
-        if type(test_size) == float:
-            test_size = round(self.num_subjects * test_size)
-
-        test_patients = self.rng.choice(
-            patient_indexes, size=test_size // 2, replace=False
-        )
-        test_controls = self.rng.choice(
-            control_indexes, size=test_size // 2, replace=False
-        )
-
-        test_indices = np.hstack([test_patients, test_controls])
-        dev_indices = np.array(
-            list(set(range(self.num_subjects)) - set(test_indices))
-        )
-
-        assert (
-            len(test_indices) + len(dev_indices) == self.num_subjects
-        ), "Dataset splitting created / lost samples."
-        logging.debug(f"Test size: {len(test_indices)}")
-        logging.debug(
-            f"Test group 1 percantage: {sum(test_indices) / len(test_indices) * 100:.2f}"
-        )
-        logging.debug(f"Dev size: {len(dev_indices)}")
-        logging.debug(
-            f"Dev group 1 percantage: {sum(dev_indices) / len(dev_indices) * 100:.2f}"
-        )
-
-        # Save split indices, along with stratified training enumerated iterator.
-        dev_fold_iterator = enumerate(
-            self.skf.split(dev_indices, self.targets[dev_indices])
-        )
-        return dev_indices, test_indices, dev_fold_iterator
-
     def _get_node_features_function(self, sur=False):
         """
         Returns partial function that get features for nodes when passed list of their indices.
@@ -279,19 +237,8 @@ class FunctionalConnectivityDataset:
         - `data.y`: Target to train against (may have arbitrary shape), e.g., node-level targets of shape `[num_nodes, *]` or graph-level targets of shape `[1, *]`
         - `data.pos`: Node position matrix with shape `[num_nodes, num_dimensions]`
         """
-        # We create FC data every time, since the average method needs to be calculated
-        # on training data only (i.e. before each fold) and the overhead is small.
-        if self.geometric_kwargs.pop("thresholding_function"):
-            avg_difference_matrix = (
-                get_average_train_difference_between_groups_matrix(
-                    self.raw_fc_matrices,
-                    self.targets,
-                    self.train_indices,
-                )
-            )
         binary_fc_matrices, _ = create_connectivity_matrices(
-            self.raw_fc_matrices,
-            thresholding_matrix=avg_difference_matrix,
+            self.raw_fc_matrices[indices],
             **self.geometric_kwargs,
         )
         node_features_function = self._get_node_features_function()
@@ -303,22 +250,21 @@ class FunctionalConnectivityDataset:
                 .to(torch.float32)
                 .to(self.device),
                 # All nonzero coordinate pairs, x and y axis separately.
-                edge_index=torch.from_numpy(
-                    np.asarray(np.nonzero(binary_fc_matrices[i]))
-                )
+                edge_index=torch.from_numpy(np.asarray(np.nonzero(fc)))
                 .to(torch.int64)
                 .to(self.device),
-                y=torch.tensor([target], dtype=torch.int64, device=self.device),
+                y=torch.tensor(
+                    [self.targets[i]], dtype=torch.int64, device=self.device
+                ),
             ).to(self.device)
-            for target, i in zip(self.targets[indices], indices)
+            for i, fc in zip(indices, binary_fc_matrices)
         ]
 
         if self.raw_fc_surrogates is not None:
             binary_fc_surrogates, _ = create_connectivity_matrices(
-                self.raw_fc_surrogates.reshape(
+                self.raw_fc_surrogates[indices].reshape(
                     -1, self.num_regions, self.num_regions
                 ),
-                thresholding_function=avg_difference_matrix,
                 **self.geometric_kwargs,
             ).reshape(len(indices), -1, self.num_regions, self.num_regions)
 
@@ -326,17 +272,16 @@ class FunctionalConnectivityDataset:
             sur_dataset = [
                 torch_geometric.Data(
                     x=x.to(torch.float32).to(self.device),
-                    edge_index=edge_index.to(torch.int64).to(self.device),
+                    edge_index=torch.from_numpy(np.asarray(np.nonzero(fc)))
+                    .to(torch.int64)
+                    .to(self.device),
                     y=torch.tensor(
-                        [target], dtype=torch.int64, device=self.device
+                        [self.targets[i]], dtype=torch.int64, device=self.device
                     ),
                 ).to(self.device)
-                for target, i in zip(self.targets[indices], indices)
-                for x, edge_index in zip(
-                    node_features_function([i]),
-                    torch.from_numpy(
-                        np.asarray(np.nonzero(binary_fc_surrogates[i]))
-                    ),
+                for i in indices
+                for x, fc in zip(
+                    node_features_function([i]), binary_fc_surrogates[i]
                 )
             ]
             return orig_dataset + sur_dataset
@@ -346,6 +291,16 @@ class FunctionalConnectivityDataset:
     @property
     def geometric_trainloader(self):
         "Train dataloader with data for graph neural network."
+        # FIXME: Trainloader needs to be access before val and test loader to set avg diff matrix properly.
+        if (
+            self.geometric_kwargs["thresholding_function"]
+            == ThresholdingFunction.GROUP_AVERAGE
+        ):
+            self.geometric_kwargs[
+                "thresholding_matrix"
+            ] = get_matrix_of_avg_diff_between_groups(
+                self.raw_fc_matrices, self.targets, self.train_indices
+            )
         return torch_geometric.data.DataLoader(
             self._get_geometric_dataset(self.train_indices),
             batch_size=self.batch_size,
@@ -400,7 +355,7 @@ class FunctionalConnectivityDataset:
             collate_fn=dotdict_collate,
         )
 
-    def next_fold(self):
+    def next_outter_cv_fold(self):
         """
         Iterator function that updates train and validation indices to that of next stratified fold.
         If the fold generator is exhausted returns `False` else `True`.
@@ -408,7 +363,26 @@ class FunctionalConnectivityDataset:
         To be used in a `while` cycle.
         """
         try:
-            i, (train_split, val_split) = next(self.dev_fold_iterator)
+            i, (dev_split, test_split) = next(self.outer_cv_iterator)
+            self.inner_cv_iterator = enumerate(
+                self.skf.split(np.empty(dev_split), self.targets[dev_split])
+            )
+            self.dev_indices, self.test_indices = dev_split, test_split
+        except StopIteration:
+            return False
+
+        logging.info(f"Generated outer fold {i+1}/{self.num_folds}")
+        return True
+
+    def next_inner_cv_fold(self):
+        """
+        Iterator function that updates train and validation indices to that of next stratified fold.
+        If the fold generator is exhausted returns `False` else `True`.
+
+        To be used in a `while` cycle.
+        """
+        try:
+            i, (train_split, val_split) = next(self.inner_cv_iterator)
             self.train_indices, self.val_indices = (
                 self.dev_indices[train_split],
                 self.dev_indices[val_split],
@@ -416,5 +390,5 @@ class FunctionalConnectivityDataset:
         except StopIteration:
             return False
 
-        logging.info(f"Generated fold {i+1}/{self.num_folds}")
+        logging.info(f"Generated inner fold {i+1}/{self.num_folds}")
         return True
