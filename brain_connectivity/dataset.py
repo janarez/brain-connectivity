@@ -20,7 +20,10 @@ from .data_utils import (
     zeroth_axis_sample,
 )
 from .enums import CorrelationType, NodeFeatures
-from .fc_matrix import create_connectivity_matrices
+from .fc_matrix import (
+    create_connectivity_matrices,
+    get_average_train_difference_between_groups_matrix,
+)
 
 
 class FunctionalConnectivityDataset:
@@ -43,7 +46,7 @@ class FunctionalConnectivityDataset:
         batch_size: int = 8,
         num_folds: int = 7,
         random_seed: int = 42,
-        geometric_dataset_kwargs: dict = {},
+        geometric_kwargs: Optional[dict] = None,
     ):
         self.log_folder = log_folder
         self.data_folder = data_folder
@@ -60,12 +63,11 @@ class FunctionalConnectivityDataset:
         self.num_subjects, self.num_regions, _ = self.raw_fc_matrices.shape
         self.batch_size = batch_size
 
-        self.random_seed = random_seed
         self.rng = np.random.default_rng(random_seed)
 
         # Parameters for setting up node features.
         self.node_features = node_features
-        self.geometric_dataset_kwargs = geometric_dataset_kwargs
+        self.geometric_kwargs = geometric_kwargs
 
         # Split data into hidden test set and dev (train+validation) set.
         self.num_folds = num_folds
@@ -277,14 +279,20 @@ class FunctionalConnectivityDataset:
         - `data.y`: Target to train against (may have arbitrary shape), e.g., node-level targets of shape `[num_nodes, *]` or graph-level targets of shape `[1, *]`
         - `data.pos`: Node position matrix with shape `[num_nodes, num_dimensions]`
         """
-        # We create FC data every time, since the average method needs to be calculated on training data only (i.e. before each fold)
-        # and the overhead is small.
+        # We create FC data every time, since the average method needs to be calculated
+        # on training data only (i.e. before each fold) and the overhead is small.
+        if self.geometric_kwargs.pop("thresholding_function"):
+            avg_difference_matrix = (
+                get_average_train_difference_between_groups_matrix(
+                    self.raw_fc_matrices,
+                    self.targets,
+                    self.train_indices,
+                )
+            )
         binary_fc_matrices, _ = create_connectivity_matrices(
             self.raw_fc_matrices,
-            **self.geometric_dataset_kwargs,
-            binary_targets=self.targets,
-            # Only training info, no val / test data.
-            train_indices=self.train_indices,
+            thresholding_matrix=avg_difference_matrix,
+            **self.geometric_kwargs,
         )
         node_features_function = self._get_node_features_function()
         orig_dataset = [
@@ -300,24 +308,20 @@ class FunctionalConnectivityDataset:
                 )
                 .to(torch.int64)
                 .to(self.device),
-                y=torch.tensor(
-                    [target], dtype=torch.int64, device=self.device
-                ),  # pylint: disable=not-callable
+                y=torch.tensor([target], dtype=torch.int64, device=self.device),
             ).to(self.device)
             for target, i in zip(self.targets[indices], indices)
         ]
 
         if self.raw_fc_surrogates is not None:
-            # TODO: How to convert to matrices?
             binary_fc_surrogates, _ = create_connectivity_matrices(
                 self.raw_fc_surrogates.reshape(
                     -1, self.num_regions, self.num_regions
                 ),
-                **self.geometric_dataset_kwargs,
-                binary_targets=self.targets,
-                # Only training info, no val / test data.
-                train_indices=self.train_indices,
-            )
+                thresholding_function=avg_difference_matrix,
+                **self.geometric_kwargs,
+            ).reshape(len(indices), -1, self.num_regions, self.num_regions)
+
             node_features_function = self._get_node_features_function(sur=True)
             sur_dataset = [
                 torch_geometric.Data(
@@ -325,11 +329,11 @@ class FunctionalConnectivityDataset:
                     edge_index=edge_index.to(torch.int64).to(self.device),
                     y=torch.tensor(
                         [target], dtype=torch.int64, device=self.device
-                    ),  # pylint: disable=not-callable
+                    ),
                 ).to(self.device)
                 for target, i in zip(self.targets[indices], indices)
                 for x, edge_index in zip(
-                    node_features_function([i])[0],
+                    node_features_function([i]),
                     torch.from_numpy(
                         np.asarray(np.nonzero(binary_fc_surrogates[i]))
                     ),
