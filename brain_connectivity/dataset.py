@@ -1,4 +1,3 @@
-import logging
 import os
 import pickle
 from functools import partial
@@ -23,6 +22,7 @@ from .fc_matrix import (
     create_connectivity_matrices,
     get_matrix_of_avg_diff_between_groups,
 )
+from .general_utils import get_logger
 
 
 class FunctionalConnectivityDataset:
@@ -46,15 +46,22 @@ class FunctionalConnectivityDataset:
         random_seed: int = 42,
         geometric_kwargs: Optional[dict] = None,
     ):
-        self.log_folder = log_folder
-        self.data_folder = data_folder
+        try:
+            os.makedirs(log_folder, exist_ok=False)
+        except FileExistsError as e:
+            raise ValueError(
+                f"Run experiment with same NAME and ID ({log_folder})."
+            ) from e
+        self.logger = get_logger(
+            "dataset", os.path.join(log_folder, "dataset.txt")
+        )
         self.device = device
 
         df = pd.read_csv(
-            os.path.join(self.data_folder, dataframe_with_subjects), index_col=0
+            os.path.join(data_folder, dataframe_with_subjects), index_col=0
         )
         self.raw_fc_matrices, self.raw_fc_surrogates = self._get_raw_matrices(
-            correlation_type, upsample_ts, upsample_ts_method
+            correlation_type, upsample_ts, upsample_ts_method, data_folder
         )
         self.targets = df[target_column].values
 
@@ -68,6 +75,7 @@ class FunctionalConnectivityDataset:
         self.geometric_kwargs = geometric_kwargs
 
         # Stratified spliting of dataset.
+        self.num_folds = num_folds
         self.skf = StratifiedKFold(
             n_splits=num_folds, random_state=random_seed, shuffle=True
         )
@@ -76,37 +84,18 @@ class FunctionalConnectivityDataset:
             self.skf.split(np.empty(shape=self.num_subjects), self.targets)
         )
 
-        # Save to file before training.
-        self._log()
-
-    def _log(self):
-        """
-        Logs all important information about used dataset to a file.
-        """
-        try:
-            os.makedirs(self.log_folder, exist_ok=False)
-        except FileExistsError as e:
-            raise ValueError(
-                f"Run experiment with same NAME and ID ({self.log_folder})."
-            ) from e
-
-        with open(
-            os.path.join(self.log_folder, "dataset.txt"), "w", encoding="utf-8"
-        ) as f:
-            f.write(self.__dict__.__str__())
-
     def _get_raw_matrices(
-        self, correlation_type, upsample_ts, upsample_ts_method
+        self, correlation_type, upsample_ts, upsample_ts_method, data_folder
     ):
         # Check for cached pickles.
         path = os.path.join(
-            self.data_folder, "cache", f"raw_matrices_{correlation_type}.pickle"
+            data_folder, "cache", f"raw_matrices_{correlation_type}.pickle"
         )
         surr_path = (
             None
             if upsample_ts is None
             else os.path.join(
-                self.data_folder,
+                data_folder,
                 "cache",
                 f"raw_surrogates_{correlation_type}_{upsample_ts}_{upsample_ts_method}.pickle",
             )
@@ -118,7 +107,7 @@ class FunctionalConnectivityDataset:
         if os.path.exists(path):
             with open(path, "rb") as f:
                 raw_matrices = pickle.load(f)
-            logging.info(f"Loaded {path} from cache.")
+            self.logger.info(f"Loaded {path} from cache.")
             # Return early if not upsampling.
             if upsample_ts is None:
                 return raw_matrices, None
@@ -127,17 +116,17 @@ class FunctionalConnectivityDataset:
         if upsample_ts is not None and os.path.exists(surr_path):
             with open(surr_path, "rb") as f:
                 raw_surrogates = pickle.load(f)
-            logging.info(f"Loaded {surr_path} from cache.")
+            self.logger.info(f"Loaded {surr_path} from cache.")
             # Return if all data has been loadede.
             if raw_matrices is None:
                 return raw_matrices, raw_surrogates
 
         # Otherwise compute from raw timeseries data.
-        with open(
-            os.path.join(self.data_folder, f"timeseries.pickle"), "rb"
-        ) as f:
+        with open(os.path.join(data_folder, f"timeseries.pickle"), "rb") as f:
             ts = pickle.load(f)
-            logging.info(f"Loaded raw timeseries dataset with shape {ts.shape}")
+            self.logger.info(
+                f"Loaded raw timeseries dataset with shape {ts.shape}"
+            )
 
         # Not even non-upsampled data were cached.
         if raw_matrices is None:
@@ -365,13 +354,15 @@ class FunctionalConnectivityDataset:
         try:
             i, (dev_split, test_split) = next(self.outer_cv_iterator)
             self.inner_cv_iterator = enumerate(
-                self.skf.split(np.empty(dev_split), self.targets[dev_split])
+                self.skf.split(
+                    np.empty(shape=len(dev_split)), self.targets[dev_split]
+                )
             )
             self.dev_indices, self.test_indices = dev_split, test_split
         except StopIteration:
             return False
 
-        logging.info(f"Generated outer fold {i+1}/{self.num_folds}")
+        self.logger.info(f"Generated outer fold {i+1}/{self.num_folds}")
         return True
 
     def next_inner_cv_fold(self):
@@ -390,5 +381,5 @@ class FunctionalConnectivityDataset:
         except StopIteration:
             return False
 
-        logging.info(f"Generated inner fold {i+1}/{self.num_folds}")
+        self.logger.info(f"Generated inner fold {i+1}/{self.num_folds}")
         return True
