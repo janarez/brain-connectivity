@@ -8,14 +8,18 @@ from collections import defaultdict
 import numpy as np
 from torch.utils.tensorboard.writer import SummaryWriter
 
+from .general_utils import get_logger
+
 
 class ModelEvaluation:
     """
     Class for calculating model metrics and logging them to tensorboard.
     """
 
-    def __init__(self, writer: SummaryWriter):
-        self.writer = writer
+    def __init__(self, log_folder: str):
+        self.logger = get_logger(
+            "evaluation", os.path.join(log_folder, "evaluation.txt")
+        )
         self.train_results = defaultdict(list)
         self.val_results = defaultdict(list)
         self._reset()
@@ -35,7 +39,7 @@ class ModelEvaluation:
 
         self.total += len(labels)
 
-    def log_evaluation(self, epoch, dataset: str):
+    def log_evaluation(self, epoch, dataset: str, writer: SummaryWriter):
         """
         Calculates metrics on aggregated confusion matrices.
         Saves and logs them to tensorboard.
@@ -46,9 +50,12 @@ class ModelEvaluation:
         precision = self.tp / (self.tp + self.fn)
 
         # Log.
-        self.writer.add_scalar(f"{dataset} accuracy", accuracy, epoch)
-        self.writer.add_scalar(f"{dataset} precision", recall, epoch)
-        self.writer.add_scalar(f"{dataset} recall", precision, epoch)
+        writer.add_scalar(f"{dataset} accuracy", accuracy, epoch)
+        writer.add_scalar(f"{dataset} precision", recall, epoch)
+        writer.add_scalar(f"{dataset} recall", precision, epoch)
+        self.logger.debug(f"Epoch {epoch}: {dataset} accuracy = {accuracy}")
+        self.logger.debug(f"Epoch {epoch}: {dataset} precision = {precision}")
+        self.logger.debug(f"Epoch {epoch}: {dataset} recall = {recall}")
 
         # Save.
         results = self.train_results if dataset == "train" else self.val_results
@@ -77,17 +84,8 @@ def aggregate_results(results):
     for k in results[0].keys():
         val_list = [res[k] for res in results]
         # Take mean and standard deviation across runs.
-        agg_results[k] = [*zip(np.mean(val_list, axis=0), np.std(val_list, axis=0))]
+        agg_results[k] = [
+            *zip(np.mean(val_list, axis=0), np.std(val_list, axis=0))
+        ]
 
     return agg_results
-
-
-def log_results(results, log_folder, log_filename):
-    """
-    Writes dictionary with results to a file.
-    """
-    with open(os.path.join(log_folder, f"{log_filename}.txt"), "w", encoding="utf-8") as f:
-        for key, value_list in results.items():
-            f.write(f"{key}\n")
-            for value in value_list:
-                f.write(f"{value}\n")

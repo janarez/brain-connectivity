@@ -7,13 +7,14 @@ formatter = logging.Formatter(
 
 # Keeps track of already taken names, so that we don't attach multiple handlers to a single logger.
 logger_names = set()
+loggers = []
 
 # Console log.
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(formatter)
 
 logger = logging.getLogger("bc")
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 logger.addHandler(console_handler)
 
 
@@ -28,6 +29,19 @@ def get_logger(name: str, filename: str):
     else:
         file_handler = logging.FileHandler(filename=filename, mode="a")
         file_handler.setFormatter(formatter)
+        # Log everything into file.
+        file_handler.setLevel(logging.DEBUG)
         child_logger.addHandler(file_handler)
     logger_names.add(name)
+    loggers.append(child_logger)
+
     return child_logger
+
+
+def end_logging():
+    global logger_names, loggers
+    logger_names = set()
+    for l in loggers:
+        for h in l.handlers:
+            h.close()
+    loggers = []

@@ -362,7 +362,7 @@ class FunctionalConnectivityDataset:
         except StopIteration:
             return False
 
-        self.logger.info(f"Generated outer fold {i+1}/{self.num_folds}")
+        self.logger.info(f"Outer fold {i+1} / {self.num_folds}")
         return True
 
     def next_inner_cv_fold(self):
@@ -381,5 +381,5 @@ class FunctionalConnectivityDataset:
         except StopIteration:
             return False
 
-        self.logger.info(f"Generated inner fold {i+1}/{self.num_folds}")
+        self.logger.info(f"Inner fold {i+1} / {self.num_folds}")
         return True

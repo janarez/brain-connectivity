@@ -2,13 +2,16 @@
 Contains general training class for training any model.
 """
 import os
+from typing import Optional
 
 import torch
 from torch.utils.tensorboard.writer import SummaryWriter
 from torch_geometric.data.dataloader import DataLoader
 from torchinfo.torchinfo import summary
 
-from .evaluation import ModelEvaluation, log_results
+from .evaluation import ModelEvaluation
+from .general_utils import get_logger
+from .model import Model
 
 
 class Trainer:
@@ -16,10 +19,6 @@ class Trainer:
     def __init__(
         self,
         log_folder,
-        # Already initiated model.
-        model,
-        trainloader: DataLoader,
-        valloader: DataLoader,
         epochs: int,
         validation_frequency: int,
         fc_matrix_plot_frequency: int,
@@ -28,21 +27,22 @@ class Trainer:
         optimizer: torch.optim.Optimizer,
         optimizer_kwargs: dict,
         scheduler: torch.optim.lr_scheduler = None,
-        scheduler_kwargs: dict = {},
+        scheduler_kwargs: Optional[dict] = None,
     ):
-        self.model = model
-        self.trainloader = trainloader
-        self.valloader = valloader
-
-        self.optimizer = optimizer(model.parameters(), **optimizer_kwargs)
-        self.scheduler = (
-            scheduler(self.optimizer, **scheduler_kwargs) if scheduler is not None else None
+        self.logger = get_logger(
+            "trainer", os.path.join(log_folder, "trainer.txt")
         )
-        self.criterion = criterion
-
-        self.writer = SummaryWriter(log_folder)
-        self.evaluation = ModelEvaluation(self.writer)
         self.log_folder = log_folder
+        self.evaluation = ModelEvaluation(log_folder)
+
+        self._optimizer = optimizer
+        self._optimizer_kwargs = optimizer_kwargs
+        self._scheduler = scheduler
+        self._scheduler_kwargs = (
+            scheduler_kwargs if scheduler_kwargs is not None else {}
+        )
+
+        self.criterion = criterion
 
         self.epochs = epochs
         self.validation_frequency = validation_frequency
@@ -50,54 +50,89 @@ class Trainer:
         self.fc_matrix_plot_frequency = fc_matrix_plot_frequency
         self.fc_matrix_plot_sublayer = fc_matrix_plot_sublayer
 
-        # Save to file before training.
-        self._log()
+        # Log training setting.
+        self.logger.info(f"Optimizer: {optimizer}, {optimizer_kwargs}")
+        self.logger.info(f"Scheduler: {scheduler} {scheduler_kwargs}")
+        self.logger.info(f"Criterion: {self.criterion}")
+        self.logger.info(f"Epochs: {self.epochs}")
+        self.logger.info(f"Validation frequency: {self.validation_frequency}")
+        self.logger.info(
+            f"Plot FC matrix: freq {self.fc_matrix_plot_frequency}, sublayer {self.fc_matrix_plot_sublayer}"
+        )
 
-    def _log(self):
-        """
-        Logs all important training parameters and model to a file.
-        """
-        with open(os.path.join(self.log_folder, "trainer.txt"), "w", encoding="utf-8") as f:
-            f.write(self.__dict__.__str__() + "\n")
-            f.write(self.model.__str__() + "\n\n")
-            f.write(str(summary(self.model)))
-
-    def train(self):
+    def train(
+        self,
+        model: Model,
+        trainloader: DataLoader,
+        valloader: DataLoader,
+        fold: int,
+    ):
         "Runs training, all relevant arguments must be provided on class creation."
+        self.optimizer = self._optimizer(
+            model.parameters(), **self._optimizer_kwargs
+        )
+        self.scheduler = (
+            self._scheduler(self.optimizer, **self._scheduler_kwargs)
+            if self._scheduler is not None
+            else None
+        )
+
+        self.writer = SummaryWriter(os.path.join(self.log_folder), fold)
+
         for epoch in range(self.epochs):
             # Train epoch.
             evaluate = (epoch + 1) % self.validation_frequency == 0
             dataset = "train"
-            self._epoch_step(self.trainloader, epoch=epoch, dataset=dataset, evaluate=evaluate)
+            self._epoch_step(
+                model,
+                trainloader,
+                epoch=epoch,
+                dataset=dataset,
+                evaluate=evaluate,
+            )
             if evaluate:
-                self.evaluation.log_evaluation(epoch, dataset=dataset)
+                self.evaluation.log_evaluation(epoch, dataset, self.writer)
 
             # Evaluate epoch.
             if (epoch + 1) % self.validation_frequency == 0:
                 dataset = "val"
-                self._epoch_step(self.valloader, epoch=epoch, dataset=dataset, evaluate=True)
-                self.evaluation.log_evaluation(epoch, dataset=dataset)
+                self._epoch_step(
+                    model,
+                    valloader,
+                    epoch=epoch,
+                    dataset=dataset,
+                    evaluate=True,
+                )
+                self.evaluation.log_evaluation(epoch, dataset, self.writer)
 
             # Plot connectivity matrix.
             if (epoch + 1) % self.fc_matrix_plot_frequency == 0:
-                self.model.plot_fc_matrix(epoch, sublayer=self.fc_matrix_plot_sublayer)
+                model.plot_fc_matrix(
+                    epoch, sublayer=self.fc_matrix_plot_sublayer
+                )
 
-        # Save and return results.
-        log_results(self.evaluation.train_results, self.log_folder, "train_results")
-        log_results(self.evaluation.val_results, self.log_folder, "val_results")
         return self.evaluation.train_results, self.evaluation.val_results
 
-    def _epoch_step(self, dataloader: DataLoader, epoch: int, dataset: str, evaluate: bool):
+    def _epoch_step(
+        self,
+        model: Model,
+        dataloader: DataLoader,
+        epoch: int,
+        dataset: str,
+        evaluate: bool,
+    ):
         running_loss = 0.0
         if dataset == "val":
-            self.model.eval()
+            model.eval()
         elif dataset == "train":
-            self.model.train()
+            model.train()
         else:
             raise ValueError("Dataset must be either 'val' or 'train'")
 
         for data in dataloader:
-            loss, outputs = self._model_step(data, backpropagate=dataset == "train")
+            loss, outputs = self._model_step(
+                model, data, backpropagate=dataset == "train"
+            )
             running_loss += loss
 
             # Calculate evaluation metrics.
@@ -114,9 +149,9 @@ class Trainer:
         epoch_loss = running_loss / len(dataloader)
         self.writer.add_scalar(f"{dataset} loss", epoch_loss, epoch)
 
-    def _model_step(self, data, backpropagate: bool = True):
+    def _model_step(self, model, data, backpropagate: bool = True):
         self.optimizer.zero_grad()
-        outputs = self.model(data)
+        outputs = model(data)
 
         loss = self.criterion(outputs, data.y)
         if backpropagate:
