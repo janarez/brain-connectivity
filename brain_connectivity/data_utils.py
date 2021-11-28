@@ -1,3 +1,4 @@
+import os
 import pickle
 from functools import partial
 from typing import List
@@ -5,8 +6,11 @@ from typing import List
 import numpy as np
 import torch
 from nolitsa import surrogates
+from sklearn.model_selection import StratifiedKFold
 from torch.utils.data.dataloader import default_collate
 from torch.utils.data.dataset import Dataset
+
+from .general_utils import get_logger
 
 
 class dotdict(dict):
@@ -80,3 +84,73 @@ def _get_surrogates(timeseries, upsample, sur_func):
                     timeseries[sample][region]
                 )[0]
     return ts_surrogates
+
+
+class StratifiedCrossValidation:
+    def __init__(
+        self,
+        log_folder,
+        targets,
+        num_assess_folds=10,
+        num_select_folds=10,
+        random_state=42,
+    ):
+        self.targets = targets
+        self.num_assess_folds = num_assess_folds
+        self.num_select_folds = num_select_folds
+
+        self._outer_skf = StratifiedKFold(
+            n_splits=num_assess_folds, random_state=random_state, shuffle=True
+        )
+        self._inner_skf = StratifiedKFold(
+            n_splits=num_select_folds, random_state=random_state, shuffle=True
+        )
+
+        # Iterator over outter CV: assessment of model performance.
+        self._outer_cv_iterator = enumerate(
+            self._outer_skf.split(np.empty(shape=len(targets)), targets)
+        )
+
+        self.logger = get_logger("cv", os.path.join(log_folder, "cv.txt"))
+
+    def outter_cross_validation(self):
+        """
+        Generates new stratified folds and updates test and dev indices.
+        """
+        while True:
+            try:
+                i, (dev_split, test_split) = next(self._outer_cv_iterator)
+            except StopIteration:
+                break
+
+            self.dev_indices, self.test_indices = dev_split, test_split
+            self._set_inner_cv_iterator()
+            self.logger.info(f"Outer fold {i+1} / {self.num_assess_folds}")
+            yield i
+
+    def _set_inner_cv_iterator(self):
+        self._inner_cv_iterator = enumerate(
+            self._inner_skf.split(
+                np.empty(shape=len(self.dev_indices)),
+                self.targets[self.dev_indices],
+            )
+        )
+
+    def inner_cross_validation(self):
+        """
+        Generates new stratified folds and updates val and train indices.
+        """
+        while True:
+            try:
+                i, (train_split, val_split) = next(self._inner_cv_iterator)
+            except StopIteration:
+                # Reset for next experiment.
+                self._set_inner_cv_iterator()
+                break
+
+            self.train_indices, self.val_indices = (
+                self.dev_indices[train_split],
+                self.dev_indices[val_split],
+            )
+            self.logger.info(f"Inner fold {i+1} / {self.num_select_folds}")
+            yield i
