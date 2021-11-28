@@ -35,15 +35,12 @@ class FunctionalConnectivityDataset:
         log_folder,
         data_folder,
         device,
-        dataframe_with_subjects: str = "patients-cleaned.csv",
-        target_column: str = "target",
+        targets: np.array,
         upsample_ts: Optional[int] = None,
         upsample_ts_method: Optional[str] = None,
         correlation_type: CorrelationType = CorrelationType.PEARSON,
         node_features: NodeFeatures = NodeFeatures.FC_MATRIX_ROW,
         batch_size: int = 8,
-        num_folds: int = 7,
-        random_seed: int = 42,
         geometric_kwargs: Optional[dict] = None,
     ):
         try:
@@ -57,32 +54,17 @@ class FunctionalConnectivityDataset:
         )
         self.device = device
 
-        df = pd.read_csv(
-            os.path.join(data_folder, dataframe_with_subjects), index_col=0
-        )
         self.raw_fc_matrices, self.raw_fc_surrogates = self._get_raw_matrices(
             correlation_type, upsample_ts, upsample_ts_method, data_folder
         )
-        self.targets = df[target_column].values
+        self.targets = targets
 
         self.num_subjects, self.num_regions, _ = self.raw_fc_matrices.shape
         self.batch_size = batch_size
 
-        self.rng = np.random.default_rng(random_seed)
-
         # Parameters for setting up node features.
         self.node_features = node_features
         self.geometric_kwargs = geometric_kwargs
-
-        # Stratified spliting of dataset.
-        self.num_folds = num_folds
-        self.skf = StratifiedKFold(
-            n_splits=num_folds, random_state=random_seed, shuffle=True
-        )
-        # Iterator over outter CV: assessment of model performance.
-        self.outer_cv_iterator = enumerate(
-            self.skf.split(np.empty(shape=self.num_subjects), self.targets)
-        )
 
     def _get_raw_matrices(
         self, correlation_type, upsample_ts, upsample_ts_method, data_folder
@@ -232,7 +214,7 @@ class FunctionalConnectivityDataset:
         )
         node_features_function = self._get_node_features_function()
         orig_dataset = [
-            torch_geometric.Data(
+            torch_geometric.data.Data(
                 # Remove the batch dim.
                 x=node_features_function([i])
                 .squeeze(0)
@@ -259,7 +241,7 @@ class FunctionalConnectivityDataset:
 
             node_features_function = self._get_node_features_function(sur=True)
             sur_dataset = [
-                torch_geometric.Data(
+                torch_geometric.data.Data(
                     x=x.to(torch.float32).to(self.device),
                     edge_index=torch.from_numpy(np.asarray(np.nonzero(fc)))
                     .to(torch.int64)
@@ -277,109 +259,40 @@ class FunctionalConnectivityDataset:
 
         return orig_dataset
 
-    @property
-    def geometric_trainloader(self):
-        "Train dataloader with data for graph neural network."
+    def geometric_loader(self, dataset, indices):
+        "Dataloader with data for graph neural network."
+        self._log_loader_stats(dataset, indices)
         # FIXME: Trainloader needs to be access before val and test loader to set avg diff matrix properly.
         if (
-            self.geometric_kwargs["thresholding_function"]
+            dataset in ["train", "dev"]
+            and self.geometric_kwargs["thresholding_function"]
             == ThresholdingFunction.GROUP_AVERAGE
         ):
             self.geometric_kwargs[
                 "thresholding_matrix"
             ] = get_matrix_of_avg_diff_between_groups(
-                self.raw_fc_matrices, self.targets, self.train_indices
+                self.raw_fc_matrices, self.targets, indices
             )
         return torch_geometric.data.DataLoader(
-            self._get_geometric_dataset(self.train_indices),
+            self._get_geometric_dataset(indices),
             batch_size=self.batch_size,
-            shuffle=True,
+            shuffle=True if dataset in ["train", "dev"] else False,
         )
 
-    @property
-    def geometric_valloader(self):
-        "Validation dataloader with data for graph neural network."
-        return torch_geometric.data.DataLoader(
-            self._get_geometric_dataset(self.val_indices),
-            batch_size=self.batch_size,
-            shuffle=False,
-        )
-
-    @property
-    def geometric_testloader(self):
-        "Test dataloader with data for graph neural network."
-        return torch_geometric.data.DataLoader(
-            self._get_geometric_dataset(self.test_indices),
-            batch_size=self.batch_size,
-            shuffle=False,
-        )
-
-    @property
-    def dense_trainloader(self):
+    def dense_loader(self, dataset, indices):
         "Train dataloader with data for dense neural network."
+        self._log_loader_stats(dataset, indices)
         return torch.utils.data.dataloader.DataLoader(
-            self._get_dense_dataset(self.train_indices),
+            self._get_dense_dataset(indices),
             batch_size=self.batch_size,
-            shuffle=True,
+            shuffle=True if dataset in ["train", "dev"] else False,
             collate_fn=dotdict_collate,
         )
 
-    @property
-    def dense_valloader(self):
-        "Validation dataloader with data for dense neural network."
-        return torch.utils.data.dataloader.DataLoader(
-            self._get_dense_dataset(self.val_indices),
-            batch_size=self.batch_size,
-            shuffle=False,
-            collate_fn=dotdict_collate,
+    def _log_loader_stats(self, dataset, indices):
+        dataset = dataset.title()
+        self.logger.info(f"{dataset} size: {len(indices)}")
+        self.logger.debug(f"{dataset} indices: {indices}")
+        self.logger.debug(
+            f"{dataset} 1:0: {sum(self.targets[indices]) / len(indices)}"
         )
-
-    @property
-    def dense_testloader(self):
-        "Test dataloader with data for dense neural network."
-        return torch.utils.data.dataloader.DataLoader(
-            self._get_dense_dataset(self.test_indices),
-            batch_size=self.batch_size,
-            shuffle=False,
-            collate_fn=dotdict_collate,
-        )
-
-    def next_outter_cv_fold(self):
-        """
-        Iterator function that updates train and validation indices to that of next stratified fold.
-        If the fold generator is exhausted returns `False` else `True`.
-
-        To be used in a `while` cycle.
-        """
-        try:
-            i, (dev_split, test_split) = next(self.outer_cv_iterator)
-            self.inner_cv_iterator = enumerate(
-                self.skf.split(
-                    np.empty(shape=len(dev_split)), self.targets[dev_split]
-                )
-            )
-            self.dev_indices, self.test_indices = dev_split, test_split
-        except StopIteration:
-            return False
-
-        self.logger.info(f"Outer fold {i+1} / {self.num_folds}")
-        return True
-
-    def next_inner_cv_fold(self):
-        """
-        Iterator function that updates train and validation indices to that of next stratified fold.
-        If the fold generator is exhausted returns `False` else `True`.
-
-        To be used in a `while` cycle.
-        """
-        try:
-            i, (train_split, val_split) = next(self.inner_cv_iterator)
-            self.train_indices, self.val_indices = (
-                self.dev_indices[train_split],
-                self.dev_indices[val_split],
-            )
-        except StopIteration:
-            return False
-
-        self.logger.info(f"Inner fold {i+1} / {self.num_folds}")
-        return True
