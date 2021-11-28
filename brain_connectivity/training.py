@@ -10,7 +10,7 @@ from torch_geometric.data.dataloader import DataLoader
 from torchinfo.torchinfo import summary
 
 from .evaluation import ModelEvaluation
-from .general_utils import get_logger
+from .general_utils import close_logger, get_logger
 from .model import Model
 
 
@@ -114,8 +114,15 @@ class Trainer:
                     epoch, sublayer=self.fc_matrix_plot_sublayer
                 )
 
-    def get_results(self, dataset):
-        return self.evaluation.get_experiment_results(dataset)
+    def get_results(self, train_dataset, eval_dataset):
+        train_res = self.evaluation.get_experiment_results(train_dataset)
+        eval_res = self.evaluation.get_experiment_results(eval_dataset)
+
+        # Close all loggers used in single inner CV run.
+        close_logger("dataset")
+        close_logger("evaluation")
+        close_logger("trainer")
+        return train_res, eval_res
 
     def _epoch_step(
         self,
