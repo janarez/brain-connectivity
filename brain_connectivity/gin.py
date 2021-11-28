@@ -23,13 +23,14 @@ class GinMLP(nn.Module):
 class GIN(Model):
     def __init__(
         self,
+        log_folder: str,
         size_in: int,
         num_hidden_features: Union[List[int], int] = 90,
         dropout: float = 0.5,
         num_sublayers: int = 3,
         eps: float = 0.0,
     ):
-        super(GIN, self).__init__()
+        super(GIN, self).__init__(log_folder)
 
         # Prepare feature mapping dimensions.
         if type(num_hidden_features) is int:

@@ -21,7 +21,9 @@ class ConnectivityEmbedding(nn.Module):
     def __init__(self, size, dropout, residual, init_weights, val, std):
         super(ConnectivityEmbedding, self).__init__()
         # Initialize with fully connected graph.
-        self.fc_matrix = nn.Parameter(torch.empty(size, size), requires_grad=True)
+        self.fc_matrix = nn.Parameter(
+            torch.empty(size, size), requires_grad=True
+        )
 
         if init_weights == "constant":
             nn.init.constant_(self.fc_matrix, val=val)
@@ -127,6 +129,7 @@ class ConnectivityDenseNet(Model):
 
     def __init__(
         self,
+        log_folder: str,
         num_nodes: int,
         mode: ConnectivityMode,
         size_in: int,
@@ -141,7 +144,7 @@ class ConnectivityDenseNet(Model):
         readout: str = "add",
         **mode_kwargs,
     ):
-        super(ConnectivityDenseNet, self).__init__()
+        super(ConnectivityDenseNet, self).__init__(log_folder)
 
         self.mode = mode
         self.fc_matrix = None
@@ -158,7 +161,9 @@ class ConnectivityDenseNet(Model):
         # Create single FC matrix that will be learned only at the beggining.
         # or
         # Create single FC matrix that will be learned throughout.
-        elif (mode == ConnectivityMode.START) or (mode == ConnectivityMode.SINGLE):
+        elif (mode == ConnectivityMode.START) or (
+            mode == ConnectivityMode.SINGLE
+        ):
             self.fc_matrix = ConnectivityEmbedding(num_nodes, **emb_kwargs)
         # Else `ConnectivityMode.MULTIPLE`, let each sublayer create its own FC matrix.
 
@@ -182,7 +187,9 @@ class ConnectivityDenseNet(Model):
                     mode_kwargs=emb_kwargs,
                     emb_matrix=self.fc_matrix,
                 )
-                for i, (size_in, size_out) in enumerate(zip(num_in_features, num_out_features))
+                for i, (size_in, size_out) in enumerate(
+                    zip(num_in_features, num_out_features)
+                )
             ]
         )
 
@@ -216,6 +223,12 @@ class ConnectivityDenseNet(Model):
     def plot_fc_matrix(self, epoch, sublayer=0):
         # TODO: Adapt for any connectivity mode.
         fc_matrix = self.sublayers[sublayer].fc_matrix.fc_matrix
+        # FIXME: Is it okey to call `detach`?
         numpy_fc_matrix = fc_matrix.cpu().detach().numpy()
-        print(fc_matrix.sum(), numpy_fc_matrix.sum(), numpy_fc_matrix.mean(), numpy_fc_matrix.std())
+        print(
+            fc_matrix.sum(),
+            numpy_fc_matrix.sum(),
+            numpy_fc_matrix.mean(),
+            numpy_fc_matrix.std(),
+        )
         plot_fc_matrix(matrix=numpy_fc_matrix, epoch=epoch)
