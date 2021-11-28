@@ -20,9 +20,15 @@ class ModelEvaluation:
         self.logger = get_logger(
             "evaluation", os.path.join(log_folder, "evaluation.txt")
         )
-        self.train_results = defaultdict(list)
-        self.val_results = defaultdict(list)
-        self._reset()
+        self.train_results, self.val_results = [], []
+        self.dev_results, self.test_results = [], []
+        self._epoch_reset()
+
+    def set_fold(self, _):
+        self.train_results.append(defaultdict(list))
+        self.val_results.append(defaultdict(list))
+        self.dev_results.append(defaultdict(list))
+        self.test_results.append(defaultdict(list))
 
     def evaluate(self, predicted, labels):
         """
@@ -58,16 +64,30 @@ class ModelEvaluation:
         self.logger.debug(f"Epoch {epoch}: {dataset} recall = {recall}")
 
         # Save.
-        results = self.train_results if dataset == "train" else self.val_results
+        results = self._get_results(dataset)
         results["accuracy"].append(accuracy)
         results["epoch"].append(epoch)
         results["recall"].append(recall)
         results["precision"].append(precision)
 
         # Reset.
-        self._reset()
+        self._epoch_reset()
 
-    def _reset(self):
+    def _get_results(self, dataset: str, index=-1):
+        if dataset == "train":
+            return self.train_results[index]
+        elif dataset == "val":
+            return self.val_results[index]
+        elif dataset == "test":
+            return self.test_results[index]
+        elif dataset == "dev":
+            return self.dev_results[index]
+        else:
+            raise ValueError(
+                f"Incorrect `dataset` value, got {dataset}, accept: train, test, dev, val."
+            )
+
+    def _epoch_reset(self):
         self.tp = 0
         self.tn = 0
         self.fp = 0
@@ -75,17 +95,19 @@ class ModelEvaluation:
         # How many times was evaluation run?
         self.total = 0
 
+    def _aggregate_results(self, results):
+        "Averages over list of dictionaries with results."
+        agg_results = {}
+        for k in results[0].keys():
+            val_list = [res[k] for res in results]
+            # Take mean and standard deviation across runs.
+            agg_results[k] = (
+                np.mean(val_list, axis=0),
+                np.std(val_list, axis=0),
+            )
 
-def aggregate_results(results):
-    """
-    Averages over list of dictionaries with results.
-    """
-    agg_results = {}
-    for k in results[0].keys():
-        val_list = [res[k] for res in results]
-        # Take mean and standard deviation across runs.
-        agg_results[k] = [
-            *zip(np.mean(val_list, axis=0), np.std(val_list, axis=0))
-        ]
+        return agg_results
 
-    return agg_results
+    def get_experiment_results(self, dataset: str):
+        results = self._get_results(dataset, index=slice(None))
+        return self._aggregate_results(results)

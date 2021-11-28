@@ -2,7 +2,7 @@
 Contains general training class for training any model.
 """
 import os
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch
 from torch.utils.tensorboard.writer import SummaryWriter
@@ -63,10 +63,13 @@ class Trainer:
     def train(
         self,
         model: Model,
-        trainloader: DataLoader,
-        valloader: DataLoader,
+        named_trainloader: Tuple[str, DataLoader],
+        named_evalloader: Tuple[str, DataLoader],
         fold: int,
     ):
+        train_dataset, trainloader = named_trainloader
+        eval_dataset, evalloader = named_evalloader
+
         "Runs training, all relevant arguments must be provided on class creation."
         self.optimizer = self._optimizer(
             model.parameters(), **self._optimizer_kwargs
@@ -76,34 +79,34 @@ class Trainer:
             if self._scheduler is not None
             else None
         )
-
+        self.evaluation.set_fold(fold)
         self.writer = SummaryWriter(os.path.join(self.log_folder), fold)
 
         for epoch in range(self.epochs):
             # Train epoch.
             evaluate = (epoch + 1) % self.validation_frequency == 0
-            dataset = "train"
             self._epoch_step(
                 model,
                 trainloader,
                 epoch=epoch,
-                dataset=dataset,
+                dataset=train_dataset,
                 evaluate=evaluate,
             )
             if evaluate:
-                self.evaluation.log_evaluation(epoch, dataset, self.writer)
+                self.evaluation.log_evaluation(
+                    epoch, train_dataset, self.writer
+                )
 
             # Evaluate epoch.
             if (epoch + 1) % self.validation_frequency == 0:
-                dataset = "val"
                 self._epoch_step(
                     model,
-                    valloader,
+                    evalloader,
                     epoch=epoch,
-                    dataset=dataset,
+                    dataset=eval_dataset,
                     evaluate=True,
                 )
-                self.evaluation.log_evaluation(epoch, dataset, self.writer)
+                self.evaluation.log_evaluation(epoch, eval_dataset, self.writer)
 
             # Plot connectivity matrix.
             if (epoch + 1) % self.fc_matrix_plot_frequency == 0:
@@ -111,7 +114,8 @@ class Trainer:
                     epoch, sublayer=self.fc_matrix_plot_sublayer
                 )
 
-        return self.evaluation.train_results, self.evaluation.val_results
+    def get_results(self, dataset):
+        return self.evaluation.get_experiment_results(dataset)
 
     def _epoch_step(
         self,
@@ -121,17 +125,16 @@ class Trainer:
         dataset: str,
         evaluate: bool,
     ):
+        backpropagate = dataset in ["train", "dev"]
         running_loss = 0.0
-        if dataset == "val":
-            model.eval()
-        elif dataset == "train":
+        if backpropagate:
             model.train()
         else:
-            raise ValueError("Dataset must be either 'val' or 'train'")
+            model.eval()
 
         for data in dataloader:
             loss, outputs = self._model_step(
-                model, data, backpropagate=dataset == "train"
+                model, data, backpropagate=backpropagate
             )
             running_loss += loss
 
@@ -143,7 +146,7 @@ class Trainer:
                 self.evaluation.evaluate(predicted, labels)
 
         # Update learning rate.
-        if self.scheduler is not None and dataset == "train":
+        if self.scheduler is not None and backpropagate:
             self.scheduler.step()
 
         epoch_loss = running_loss / len(dataloader)
