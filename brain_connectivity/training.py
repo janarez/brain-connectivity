@@ -9,9 +9,13 @@ from torch.utils.tensorboard.writer import SummaryWriter
 from torch_geometric.data.dataloader import DataLoader
 from torchinfo.torchinfo import summary
 
+from .dataset import FunctionalConnectivityDataset
+from .dense import ConnectivityDenseNet
 from .evaluation import ModelEvaluation
 from .general_utils import close_logger, get_logger
+from .gin import GIN
 from .model import Model
+from .training import Trainer
 
 
 class Trainer:
@@ -169,3 +173,40 @@ class Trainer:
             self.optimizer.step()
 
         return loss.item(), outputs
+
+
+def init_dense_traning(log_folder, device, hyperparameters, targets):
+    # Init model.
+    model = ConnectivityDenseNet(
+        log_folder,
+        **hyperparameters[model_params],
+        **hyperparameters[dense_params],
+    ).to(device)
+    data, trainer = _init_training(log_folder, hyperparameters, targets)
+    return model, data, trainer
+
+
+def init_geometric_traning(log_folder, device, hyperparameters, targets):
+    # Init model.
+    model = GIN(
+        log_folder,
+        **hyperparameters[model_params],
+        **hyperparameters[gin_params],
+    ).to(device)
+    data, trainer = _init_training(log_folder, hyperparameters, targets)
+    return model, data, trainer
+
+
+def _init_training(log_folder, hyperparameters, targets):
+    # Init dataset.
+    data = FunctionalConnectivityDataset(
+        targets=targets,
+        **hyperparameters[dataset_params],
+        log_folder=log_folder,
+    )
+    # Init trainer.
+    trainer = Trainer(
+        **hyperparameters[training_params],
+        log_folder=log_folder,
+    )
+    return data, trainer
