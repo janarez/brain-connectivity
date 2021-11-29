@@ -8,7 +8,12 @@ using the `reload` module function.
 from enum import Enum, auto
 
 
-class ConnectivityMode(Enum):
+class CustomEnum(Enum):
+    def __str__(self):
+        return f"{self.name.lower()}"
+
+
+class ConnectivityMode(CustomEnum):
     """
     Determines how is connectivity matrix obtained.
 
@@ -24,17 +29,14 @@ class ConnectivityMode(Enum):
     MULTIPLE = auto()
 
 
-class CorrelationType(Enum):
+class CorrelationType(CustomEnum):
     "Different types of correlation for the raw timeseries."
     PEARSON = "pearson"
     SPEARMAN = "spearman"
     PARTIAL_PEARSON = "partial_pearson"
 
-    def __str__(self):
-        return f"{self.value}"
 
-
-class DataThresholdingType(Enum):
+class DataThresholdingType(CustomEnum):
     """
     Determines method of creating graph from a FC matrix.
 
@@ -49,7 +51,7 @@ class DataThresholdingType(Enum):
     SPARSITY = auto()
 
 
-class ThresholdingFunction(Enum):
+class ThresholdingFunction(CustomEnum):
     """
     Determines based on what information are graphs created.
 
@@ -65,7 +67,7 @@ class ThresholdingFunction(Enum):
     RANDOM = auto()
 
 
-class NodeFeatures(Enum):
+class NodeFeatures(CustomEnum):
     """
     FC_MATRIX_ROW: Each node has as its features its row from FC matrix.
     ONE_HOT_REGION: Each node has as its features one hot encoding of its id.
