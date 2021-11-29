@@ -33,7 +33,6 @@ model_param_names = [
     "dropout",
 ]
 dense_param_names = [
-    "node_features",
     "mode",
     "num_nodes",
     "readout",
@@ -92,12 +91,12 @@ class Trainer:
         self.fc_matrix_plot_sublayer = fc_matrix_plot_sublayer
 
         # Log training setting.
-        self.logger.info(f"Optimizer: {optimizer}, {optimizer_kwargs}")
-        self.logger.info(f"Scheduler: {scheduler} {scheduler_kwargs}")
-        self.logger.info(f"Criterion: {self.criterion}")
-        self.logger.info(f"Epochs: {self.epochs}")
-        self.logger.info(f"Validation frequency: {self.validation_frequency}")
-        self.logger.info(
+        self.logger.debug(f"Optimizer: {optimizer}, {optimizer_kwargs}")
+        self.logger.debug(f"Scheduler: {scheduler} {scheduler_kwargs}")
+        self.logger.debug(f"Criterion: {self.criterion}")
+        self.logger.debug(f"Epochs: {self.epochs}")
+        self.logger.debug(f"Validation frequency: {self.validation_frequency}")
+        self.logger.debug(
             f"Plot FC matrix: freq {self.fc_matrix_plot_frequency}, sublayer {self.fc_matrix_plot_sublayer}"
         )
 

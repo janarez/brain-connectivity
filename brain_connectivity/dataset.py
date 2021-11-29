@@ -60,6 +60,13 @@ class FunctionalConnectivityDataset:
         self.node_features = node_features
         self.geometric_kwargs = geometric_kwargs
 
+        self.logger.debug(f"Upsample timeseries: {upsample_ts}")
+        self.logger.debug(f"Upsample timeseries method: {upsample_ts_method}")
+        self.logger.debug(f"Correlation: {correlation_type}")
+        self.logger.debug(f"Node features: {node_features}")
+        self.logger.debug(f"Batch size: {batch_size}")
+        self.logger.debug(f"Geometric kwargs: {geometric_kwargs}")
+
     def _get_raw_matrices(
         self, correlation_type, upsample_ts, upsample_ts_method, data_folder
     ):

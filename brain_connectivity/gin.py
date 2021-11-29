@@ -47,6 +47,11 @@ class GIN(Model):
         )
         self.fc = nn.Linear(num_out_features[-1], 2)
 
+        self.logger.debug(f"Num hidden features: {num_hidden_features}")
+        self.logger.debug(f"Dropout: {dropout}")
+        self.logger.debug(f"Num sublayers: {num_sublayers}")
+        self.logger.debug(f"Eps: {eps}")
+
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
 
