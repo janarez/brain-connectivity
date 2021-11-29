@@ -1,12 +1,12 @@
 import os
-import pickle
 from functools import partial
+from itertools import product
 from typing import List
 
 import numpy as np
 import torch
 from nolitsa import surrogates
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import ParameterGrid, StratifiedKFold
 from torch.utils.data.dataloader import default_collate
 from torch.utils.data.dataset import Dataset
 
@@ -48,10 +48,6 @@ def zeroth_axis_sample(matrix: np.array, i: List[int]):
 
 def identity_matrix(size: int, i: List[int]):
     return torch.diag(torch.ones(size)).unsqueeze(0).repeat(len(i), 1, 1)
-
-
-with open("../pickles/timeseries.pickle", "rb") as f:
-    ts = pickle.load(f)
 
 
 def aaft_surrogates(timeseries: np.array, upsample: int):
@@ -154,3 +150,55 @@ class StratifiedCrossValidation:
             )
             self.logger.info(f"Inner fold {i+1} / {self.num_select_folds}")
             yield i
+
+
+class DoubleLevelParameterGrid(ParameterGrid):
+    """
+    Adapted `ParameterGrid` that can handle parameters wrapped in a dictionary.
+    """
+
+    def __init__(self, param_grid):
+        super().__init__(param_grid)
+
+        # Take all parameters in dictionary and put them outside of it.
+        self.expanded_param_grid = []
+        self.expanded_dicts = []
+        for pg in self.param_grid:
+            exp_pg = dict()
+            exp_dict = dict()
+            for key, value in pg.items():
+                if type(value) == dict:
+                    exp_dict[key] = value.keys()
+                    for k, v in value.items():
+                        exp_pg[k] = v
+                else:
+                    exp_pg[key] = value
+            self.expanded_dicts.append(exp_dict)
+            self.expanded_param_grid.append(exp_pg)
+
+        self.param_grid, self.orig_param_grid = (
+            self.expanded_param_grid,
+            self.param_grid,
+        )
+
+    def __iter__(self):
+        for exp_pg, exp_dict in zip(self.param_grid, self.expanded_dicts):
+            # Always sort the keys of a dictionary, for reproducibility.
+            items = sorted(exp_pg.items())
+            if not items:
+                yield {}
+            else:
+                keys, values = zip(*items)
+                for v in product(*values):
+                    params = dict(zip(keys, v))
+                    # Put keys that were originally in a dictionary back inside.
+                    for dict_name, dict_keys in exp_dict.items():
+                        params[dict_name] = dict()
+                        for key in dict_keys:
+                            value = params.pop(key)
+                            params[dict_name][key] = value
+
+                    yield params
+
+    def __getitem__(self, _):
+        return NotImplementedError
