@@ -248,6 +248,8 @@ def _get_data_thresholded_by_matrix(
         for s in range(num_subjects):
             for r in range(num_regions):
                 mask[s, r, knn_index[s, r]] = True
+    elif threshold_type == DataThresholdingType.SPARSITY:
+        raise NotImplementedError()
 
     # Transform raw data.
     binary_fc_matrices = np.where(mask, 1, 0)
