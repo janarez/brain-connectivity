@@ -13,9 +13,7 @@ def create_connectivity_matrices(
     thresholding_function: ThresholdingFunction,
     threshold_type: DataThresholdingType,
     threshold: Union[float, int],
-    thresholding_operator: Optional[
-        Union[operator.le, operator.ge]
-    ] = operator.ge,
+    thresholding_operator: Union[operator.le, operator.ge] = operator.ge,
     threshold_by_absolute_value: bool = True,
     return_absolute_value: bool = False,
     # Specific to `ThresholdingFunction.GROUP_AVERAGE` and `ThresholdingFunction.EXPLICIT_MATRIX`.
