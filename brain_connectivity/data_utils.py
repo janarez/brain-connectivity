@@ -85,7 +85,6 @@ def _get_surrogates(timeseries, upsample, sur_func):
 class StratifiedCrossValidation:
     def __init__(
         self,
-        log_folder,
         targets,
         num_assess_folds=10,
         num_select_folds=10,
@@ -107,8 +106,6 @@ class StratifiedCrossValidation:
             self._outer_skf.split(np.empty(shape=len(targets)), targets)
         )
 
-        self.logger = get_logger("cv", os.path.join(log_folder, "cv.txt"))
-
     def outter_cross_validation(self):
         """
         Generates new stratified folds and updates test and dev indices.
@@ -121,7 +118,6 @@ class StratifiedCrossValidation:
 
             self.dev_indices, self.test_indices = dev_split, test_split
             self._set_inner_cv_iterator()
-            self.logger.info(f"Outer fold {i+1} / {self.num_assess_folds}")
             yield i
 
     def _set_inner_cv_iterator(self):
@@ -148,7 +144,6 @@ class StratifiedCrossValidation:
                 self.dev_indices[train_split],
                 self.dev_indices[val_split],
             )
-            self.logger.info(f"Inner fold {i+1} / {self.num_select_folds}")
             yield i
 
 
