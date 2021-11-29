@@ -101,12 +101,12 @@ class StratifiedCrossValidation:
             n_splits=num_select_folds, random_state=random_state, shuffle=True
         )
 
-        # Iterator over outter CV: assessment of model performance.
+        # Iterator over outer CV: assessment of model performance.
         self._outer_cv_iterator = enumerate(
             self._outer_skf.split(np.empty(shape=len(targets)), targets)
         )
 
-    def outter_cross_validation(self):
+    def outer_cross_validation(self):
         """
         Generates new stratified folds and updates test and dev indices.
         """
