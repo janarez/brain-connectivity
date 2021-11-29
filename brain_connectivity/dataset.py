@@ -43,12 +43,6 @@ class FunctionalConnectivityDataset:
         batch_size: int = 8,
         geometric_kwargs: Optional[dict] = None,
     ):
-        try:
-            os.makedirs(log_folder, exist_ok=False)
-        except FileExistsError as e:
-            raise ValueError(
-                f"Run experiment with same NAME and ID ({log_folder})."
-            ) from e
         self.logger = get_logger(
             "dataset", os.path.join(log_folder, "dataset.txt")
         )
@@ -291,7 +285,7 @@ class FunctionalConnectivityDataset:
 
     def _log_loader_stats(self, dataset, indices):
         dataset = dataset.title()
-        self.logger.info(f"{dataset} size: {len(indices)}")
+        self.logger.debug(f"{dataset} size: {len(indices)}")
         self.logger.debug(f"{dataset} indices: {indices}")
         self.logger.debug(
             f"{dataset} 1:0: {sum(self.targets[indices]) / len(indices)}"
