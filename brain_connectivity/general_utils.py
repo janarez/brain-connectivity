@@ -39,9 +39,11 @@ def get_logger(name: str, filename: str):
 
 def close_logger(name: str):
     logger = loggers.pop(name)
-    for handler in logger.handlers:
+    handlers = logger.handlers
+    for handler in handlers:
         handler.flush()
         handler.close()
+        logger.removeHandler(handler)
 
 
 def close_all_loggers():
