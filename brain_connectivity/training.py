@@ -15,7 +15,44 @@ from .evaluation import ModelEvaluation
 from .general_utils import close_logger, get_logger
 from .gin import GIN
 from .model import Model
-from .training import Trainer
+
+# Converts dictionary to string, keeps only first letters of words in keys.
+stringify = lambda d: "_".join(
+    [
+        f"{''.join([w[0] for w in k.split('_')])}={v}"
+        if type(v) != dict
+        else stringify(v)
+        for k, v in d.items()
+    ]
+)
+
+
+model_param_names = [
+    "num_hidden_features",
+    "num_sublayers",
+    "dropout",
+]
+dense_param_names = [
+    "node_features",
+    "mode",
+    "num_nodes",
+    "readout",
+    "emb_dropout",
+    "emb_residual",
+    "emb_init_weights",
+    "emb_val",
+    "emb_std",
+]
+graph_param_names = ["eps"]
+dataset_param_names = [
+    "upsample_ts",
+    "upsample_ts_method",
+    "correlation_type",
+    "node_features",
+    "batch_size",
+    "geometric_kwargs",
+]
+training_param_names = ["epochs", "optimizer_kwargs"]
 
 
 class Trainer:
@@ -25,13 +62,13 @@ class Trainer:
         log_folder,
         epochs: int,
         validation_frequency: int,
-        fc_matrix_plot_frequency: int,
-        fc_matrix_plot_sublayer: int,
         criterion,
         optimizer: torch.optim.Optimizer,
         optimizer_kwargs: dict,
         scheduler: torch.optim.lr_scheduler = None,
         scheduler_kwargs: Optional[dict] = None,
+        fc_matrix_plot_frequency: Optional[int] = None,
+        fc_matrix_plot_sublayer: int = 0,
     ):
         self.logger = get_logger(
             "trainer", os.path.join(log_folder, "trainer.txt")
@@ -113,7 +150,10 @@ class Trainer:
                 self.evaluation.log_evaluation(epoch, eval_dataset, self.writer)
 
             # Plot connectivity matrix.
-            if (epoch + 1) % self.fc_matrix_plot_frequency == 0:
+            if (
+                self.fc_matrix_plot_frequency is not None
+                and (epoch + 1) % self.fc_matrix_plot_frequency == 0
+            ):
                 model.plot_fc_matrix(
                     epoch, sublayer=self.fc_matrix_plot_sublayer
                 )
@@ -123,9 +163,8 @@ class Trainer:
         eval_res = self.evaluation.get_experiment_results(eval_dataset)
 
         # Close all loggers used in single inner CV run.
-        close_logger("dataset")
-        close_logger("evaluation")
-        close_logger("trainer")
+        for l in ["dataset", "evaluation", "trainer", "model"]:
+            close_logger(l)
         return train_res, eval_res
 
     def _epoch_step(
@@ -175,38 +214,64 @@ class Trainer:
         return loss.item(), outputs
 
 
-def init_dense_traning(log_folder, device, hyperparameters, targets):
+def init_dense_traning(
+    log_folder,
+    device,
+    hyperparameters,
+    targets,
+    model_params,
+    dataset_params,
+    training_params,
+):
     # Init model.
     model = ConnectivityDenseNet(
         log_folder,
-        **hyperparameters[model_params],
-        **hyperparameters[dense_params],
+        **model_params,
+        **{k: hyperparameters[k] for k in model_param_names},
+        **{k: hyperparameters[k] for k in dense_param_names},
     ).to(device)
-    data, trainer = _init_training(log_folder, hyperparameters, targets)
+    data, trainer = _init_training(
+        log_folder, hyperparameters, targets, dataset_params, training_params
+    )
     return model, data, trainer
 
 
-def init_geometric_traning(log_folder, device, hyperparameters, targets):
+def init_geometric_traning(
+    log_folder,
+    device,
+    hyperparameters,
+    targets,
+    model_params,
+    dataset_params,
+    training_params,
+):
     # Init model.
     model = GIN(
         log_folder,
-        **hyperparameters[model_params],
-        **hyperparameters[gin_params],
+        **model_params,
+        **{k: hyperparameters[k] for k in model_param_names},
+        **{k: hyperparameters[k] for k in graph_param_names},
     ).to(device)
-    data, trainer = _init_training(log_folder, hyperparameters, targets)
+    data, trainer = _init_training(
+        log_folder, hyperparameters, targets, dataset_params, training_params
+    )
     return model, data, trainer
 
 
-def _init_training(log_folder, hyperparameters, targets):
+def _init_training(
+    log_folder, hyperparameters, targets, dataset_params, training_params
+):
     # Init dataset.
     data = FunctionalConnectivityDataset(
         targets=targets,
-        **hyperparameters[dataset_params],
+        **dataset_params,
+        **{k: hyperparameters[k] for k in dataset_param_names},
         log_folder=log_folder,
     )
     # Init trainer.
     trainer = Trainer(
-        **hyperparameters[training_params],
+        **training_params,
+        **{k: hyperparameters[k] for k in training_param_names},
         log_folder=log_folder,
     )
     return data, trainer
