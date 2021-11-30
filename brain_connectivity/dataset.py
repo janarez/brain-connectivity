@@ -90,7 +90,7 @@ class FunctionalConnectivityDataset:
         if os.path.exists(path):
             with open(path, "rb") as f:
                 raw_matrices = pickle.load(f)
-            self.logger.info(f"Loaded {path} from cache.")
+            self.logger.debug(f"Loaded {path} from cache.")
             # Return early if not upsampling.
             if upsample_ts is None:
                 return raw_matrices, None
@@ -99,7 +99,7 @@ class FunctionalConnectivityDataset:
         if upsample_ts is not None and os.path.exists(surr_path):
             with open(surr_path, "rb") as f:
                 raw_surrogates = pickle.load(f)
-            self.logger.info(f"Loaded {surr_path} from cache.")
+            self.logger.debug(f"Loaded {surr_path} from cache.")
             # Return if all data has been loadede.
             if raw_matrices is None:
                 return raw_matrices, raw_surrogates

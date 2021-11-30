@@ -4,6 +4,7 @@ Contains general training class for training any model.
 import os
 from typing import Optional, Tuple
 
+import numpy as np
 import torch
 from torch.utils.tensorboard.writer import SummaryWriter
 from torch_geometric.data.dataloader import DataLoader
@@ -86,6 +87,7 @@ class Trainer:
 
         self.epochs = epochs
         self.validation_frequency = validation_frequency
+        self.train_loss, self.eval_loss = [], []
 
         self.fc_matrix_plot_frequency = fc_matrix_plot_frequency
         self.fc_matrix_plot_sublayer = fc_matrix_plot_sublayer
@@ -109,6 +111,8 @@ class Trainer:
     ):
         train_dataset, trainloader = named_trainloader
         eval_dataset, evalloader = named_evalloader
+        self.train_loss.append([])
+        self.eval_loss.append([])
 
         "Runs training, all relevant arguments must be provided on class creation."
         self.optimizer = self._optimizer(
@@ -125,13 +129,16 @@ class Trainer:
         for epoch in range(self.epochs):
             # Train epoch.
             evaluate = (epoch + 1) % self.validation_frequency == 0
-            self._epoch_step(
+            loss = self._epoch_step(
                 model,
                 trainloader,
                 epoch=epoch,
                 dataset=train_dataset,
                 evaluate=evaluate,
             )
+            self.train_loss[fold].append(loss)
+            self.logger.debug(f"Epoch {epoch}: {train_dataset} loss = {loss}")
+
             if evaluate:
                 self.evaluation.log_evaluation(
                     epoch, train_dataset, self.writer
@@ -139,12 +146,17 @@ class Trainer:
 
             # Evaluate epoch.
             if (epoch + 1) % self.validation_frequency == 0:
-                self._epoch_step(
+                loss = self._epoch_step(
                     model,
                     evalloader,
                     epoch=epoch,
                     dataset=eval_dataset,
                     evaluate=True,
+                )
+                # FIXME: Will currently work only with `validation_freq == 1`.
+                self.eval_loss[fold].append(loss)
+                self.logger.debug(
+                    f"Epoch {epoch}: {eval_dataset} loss = {loss}"
                 )
                 self.evaluation.log_evaluation(epoch, eval_dataset, self.writer)
 
@@ -160,6 +172,14 @@ class Trainer:
     def get_results(self, train_dataset, eval_dataset):
         train_res = self.evaluation.get_experiment_results(train_dataset)
         eval_res = self.evaluation.get_experiment_results(eval_dataset)
+        train_res["loss"] = (
+            np.mean(self.train_loss, axis=0),
+            np.std(self.train_loss, axis=0),
+        )
+        eval_res["loss"] = (
+            np.mean(self.eval_loss, axis=0),
+            np.std(self.eval_loss, axis=0),
+        )
 
         # Close all loggers used in single inner CV run.
         for l in ["dataset", "evaluation", "trainer", "model"]:
@@ -200,6 +220,7 @@ class Trainer:
 
         epoch_loss = running_loss / len(dataloader)
         self.writer.add_scalar(f"{dataset} loss", epoch_loss, epoch)
+        return epoch_loss
 
     def _model_step(self, model, data, backpropagate: bool = True):
         self.optimizer.zero_grad()
