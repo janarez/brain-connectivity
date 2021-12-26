@@ -1,13 +1,12 @@
 import os
 import pickle
 from functools import partial
-from typing import Optional, Union
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 import torch
 import torch_geometric
-from sklearn.model_selection import StratifiedKFold
 
 from .data_utils import (
     DenseDataset,
@@ -105,7 +104,7 @@ class FunctionalConnectivityDataset:
                 return raw_matrices, raw_surrogates
 
         # Otherwise compute from raw timeseries data.
-        with open(os.path.join(data_folder, f"timeseries.pickle"), "rb") as f:
+        with open(os.path.join(data_folder, "timeseries.pickle"), "rb") as f:
             ts = pickle.load(f)
             self.logger.info(
                 f"Loaded raw timeseries dataset with shape {ts.shape}"

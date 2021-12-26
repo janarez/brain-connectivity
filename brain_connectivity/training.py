@@ -8,7 +8,6 @@ import numpy as np
 import torch
 from torch.utils.tensorboard.writer import SummaryWriter
 from torch_geometric.data.dataloader import DataLoader
-from torchinfo.torchinfo import summary
 
 from .dataset import FunctionalConnectivityDataset
 from .dense import ConnectivityDenseNet
@@ -17,15 +16,17 @@ from .general_utils import close_logger, get_logger
 from .gin import GIN
 from .model import Model
 
+
 # Converts dictionary to string, keeps only first letters of words in keys.
-stringify = lambda d: "_".join(
-    [
-        f"{''.join([w[0] for w in k.split('_')])}={v}"
-        if type(v) != dict
-        else stringify(v)
-        for k, v in d.items()
-    ]
-)
+def stringify(d):
+    return "_".join(
+        [
+            f"{''.join([w[0] for w in k.split('_')])}={v}"
+            if type(v) != dict
+            else stringify(v)
+            for k, v in d.items()
+        ]
+    )
 
 
 model_param_names = [
@@ -182,8 +183,8 @@ class Trainer:
         )
 
         # Close all loggers used in single inner CV run.
-        for l in ["dataset", "evaluation", "trainer"]:
-            close_logger(l)
+        for name in ["dataset", "evaluation", "trainer"]:
+            close_logger(name)
         return train_res, eval_res
 
     def _epoch_step(

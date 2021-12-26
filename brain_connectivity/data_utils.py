@@ -1,4 +1,3 @@
-import os
 from functools import partial
 from itertools import product
 from typing import List
@@ -9,8 +8,6 @@ from nolitsa import surrogates
 from sklearn.model_selection import ParameterGrid, StratifiedKFold
 from torch.utils.data.dataloader import default_collate
 from torch.utils.data.dataset import Dataset
-
-from .general_utils import get_logger
 
 
 class dotdict(dict):
