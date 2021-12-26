@@ -100,8 +100,8 @@ class FunctionalConnectivityDataset:
             with open(surr_path, "rb") as f:
                 raw_surrogates = pickle.load(f)
             self.logger.debug(f"Loaded {surr_path} from cache.")
-            # Return if all data has been loadede.
-            if raw_matrices is None:
+            # Return if all data has been loaded.
+            if raw_matrices is not None:
                 return raw_matrices, raw_surrogates
 
         # Otherwise compute from raw timeseries data.
@@ -130,8 +130,8 @@ class FunctionalConnectivityDataset:
                     f"Got {upsample_ts_method} and {upsample_ts}, accepting 'aaft' or 'iaaft', plus positive int."
                 )
             raw_surrogates = self._calculate_correlation_matrix(
-                correlation_type, surrogates
-            )
+                correlation_type, surrogates.reshape(-1, *surrogates.shape[-2:])
+            ).reshape(*surrogates.shape[:-1], -1)
             # Cache.
             with open(surr_path, "wb") as f:
                 pickle.dump(raw_surrogates, f)
@@ -176,7 +176,7 @@ class FunctionalConnectivityDataset:
         orig_dataset = DenseDataset(
             node_features_function(indices).to(torch.float32).to(self.device),
             torch.from_numpy(self.targets[indices])
-            .to(torch.int64)
+            .to(torch.float32)
             .to(self.device),
         )
 
@@ -190,9 +190,9 @@ class FunctionalConnectivityDataset:
                 .to(torch.float32)
                 .to(self.device),
                 torch.from_numpy(self.targets[indices])
-                # Index dim corresponds to label, but must be repeated `upsample` times.
-                .repeat(self.raw_fc_surrogates.shape[1], dim=1)
-                .to(torch.int64)
+                # Labels must be repeated `upsample` times.
+                .repeat_interleave(self.raw_fc_surrogates.shape[1])
+                .to(torch.float32)
                 .to(self.device),
             )
             return orig_dataset + sur_dataset
@@ -226,7 +226,7 @@ class FunctionalConnectivityDataset:
                 .to(torch.int64)
                 .to(self.device),
                 y=torch.tensor(
-                    [self.targets[i]], dtype=torch.int64, device=self.device
+                    [self.targets[i]], dtype=torch.float32, device=self.device
                 ),
             ).to(self.device)
             for i, fc in zip(indices, binary_fc_matrices)
@@ -248,7 +248,9 @@ class FunctionalConnectivityDataset:
                     .to(torch.int64)
                     .to(self.device),
                     y=torch.tensor(
-                        [self.targets[i]], dtype=torch.int64, device=self.device
+                        [self.targets[i]],
+                        dtype=torch.float32,
+                        device=self.device,
                     ),
                 ).to(self.device)
                 for i in indices
