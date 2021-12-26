@@ -3,7 +3,6 @@ from typing import List, Union
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch_geometric.nn import GINConv, global_add_pool
 
 from .model import Model
@@ -24,14 +23,13 @@ class GinMLP(nn.Module):
 class GIN(Model):
     def __init__(
         self,
-        log_folder: str,
         size_in: int,
         num_hidden_features: Union[List[int], int] = 90,
         dropout: float = 0.5,
         num_sublayers: int = 3,
         eps: float = 0.0,
     ):
-        super(GIN, self).__init__(log_folder)
+        super(GIN, self).__init__()
 
         # Prepare feature mapping dimensions.
         if type(num_hidden_features) is int:
@@ -47,11 +45,6 @@ class GIN(Model):
             ]
         )
         self.fc = nn.Linear(num_out_features[-1], 1)
-
-        self.logger.debug(f"Num hidden features: {num_hidden_features}")
-        self.logger.debug(f"Dropout: {dropout}")
-        self.logger.debug(f"Num sublayers: {num_sublayers}")
-        self.logger.debug(f"Eps: {eps}")
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch

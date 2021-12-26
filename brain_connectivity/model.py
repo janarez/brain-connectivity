@@ -1,14 +1,25 @@
+import inspect
 import os
 
 import torch.nn as nn
 
-from .general_utils import get_logger
+from .general_utils import close_logger, get_logger
 
 
 class Model(nn.Module):
-    def __init__(self, log_folder):
+    def __init__(self):
         super(Model, self).__init__()
-        self.logger = get_logger("model", os.path.join(log_folder, "model.txt"))
+
+    @classmethod
+    def log(cls, log_folder, kwargs):
+        logger = get_logger("model", os.path.join(log_folder, "model.txt"))
+        signature = inspect.signature(cls.__init__)
+
+        for key, value in signature.parameters.items():
+            v = kwargs.get(key, value.default)
+            logger.debug(f"{' '.join(key.capitalize().split('_'))}: {v}")
+
+        close_logger("model")
 
     def forward(self, x):
         raise NotImplementedError

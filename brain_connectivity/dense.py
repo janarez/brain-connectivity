@@ -129,7 +129,6 @@ class ConnectivityDenseNet(Model):
 
     def __init__(
         self,
-        log_folder: str,
         num_nodes: int,
         mode: ConnectivityMode,
         size_in: int,
@@ -144,7 +143,7 @@ class ConnectivityDenseNet(Model):
         readout: str = "add",
         **mode_kwargs,
     ):
-        super(ConnectivityDenseNet, self).__init__(log_folder)
+        super(ConnectivityDenseNet, self).__init__()
 
         self.mode = mode
         self.fc_matrix = None
@@ -196,17 +195,6 @@ class ConnectivityDenseNet(Model):
         # Classification head.
         self.readout = readout
         self.fc = nn.Linear(num_out_features[-1], 1)
-
-        self.logger.debug(f"Num hidden features: {num_hidden_features}")
-        self.logger.debug(f"Dropout: {dropout}")
-        self.logger.debug(f"Num sublayers: {num_sublayers}")
-        self.logger.debug(f"Mode: {mode}")
-        self.logger.debug(f"Readout: {readout}")
-        self.logger.debug(f"Emb dropout: {emb_dropout}")
-        self.logger.debug(f"Emb residual: {emb_residual}")
-        self.logger.debug(f"Emb init weights: {emb_init_weights}")
-        self.logger.debug(f"Emb val: {emb_val}")
-        self.logger.debug(f"Emb std: {emb_std}")
 
     def forward(self, data):
         x = data.x
