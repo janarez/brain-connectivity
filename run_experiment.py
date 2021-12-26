@@ -145,7 +145,7 @@ if __name__ == "__main__":
             )
             os.makedirs(log_folder, exist_ok=False)
 
-            model, data, trainer = training.init_traning(
+            model_class, model_arguments, data, trainer = training.init_traning(
                 args.model_type,
                 log_folder,
                 args.data_folder,
@@ -164,7 +164,7 @@ if __name__ == "__main__":
                     f"Inner fold {inner_id+1} / {args.num_select_folds}"
                 )
                 trainer.train(
-                    model=model,
+                    model=model_class(**model_arguments).to(device),
                     named_trainloader=(
                         train_dataset,
                         data.dense_loader(
@@ -213,7 +213,7 @@ if __name__ == "__main__":
             )
             os.makedirs(log_folder, exist_ok=False)
 
-            model, data, trainer = training.init_traning(
+            model_class, model_arguments, data, trainer = training.init_traning(
                 args.model_type,
                 log_folder,
                 args.data_folder,
@@ -227,7 +227,7 @@ if __name__ == "__main__":
             train_dataset = "dev"
             eval_dataset = "test"
             trainer.train(
-                model=model,
+                model=model_class(**model_arguments).to(device),
                 named_trainloader=(
                     train_dataset,
                     data.dense_loader(

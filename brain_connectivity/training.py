@@ -182,7 +182,7 @@ class Trainer:
         )
 
         # Close all loggers used in single inner CV run.
-        for l in ["dataset", "evaluation", "trainer", "model"]:
+        for l in ["dataset", "evaluation", "trainer"]:
             close_logger(l)
         return train_res, eval_res
 
@@ -245,17 +245,17 @@ def init_traning(
     model_params,
     training_params,
 ):
+    # Prepare model.
     model_class = GIN if model_type == "graph" else ConnectivityDenseNet
     specific_model_param_names = (
         graph_param_names if model_type == "graph" else dense_param_names
     )
-    # Init model.
-    model = model_class(
-        log_folder,
+    model_arguments = {
         **model_params,
         **{k: hyperparameters[k] for k in model_param_names},
         **{k: hyperparameters[k] for k in specific_model_param_names},
-    ).to(device)
+    }
+    model_class.log(log_folder, model_arguments)
 
     data = FunctionalConnectivityDataset(
         targets=targets,
@@ -271,4 +271,4 @@ def init_traning(
         log_folder=log_folder,
     )
 
-    return model, data, trainer
+    return model_class, model_arguments, data, trainer
