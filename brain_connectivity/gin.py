@@ -3,6 +3,7 @@ from typing import List, Union
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch_geometric.nn import GINConv, global_add_pool
 
 from .model import Model
@@ -45,7 +46,7 @@ class GIN(Model):
                 for size_in, size_out in zip(num_in_features, num_out_features)
             ]
         )
-        self.fc = nn.Linear(num_out_features[-1], 2)
+        self.fc = nn.Linear(num_out_features[-1], 1)
 
         self.logger.debug(f"Num hidden features: {num_hidden_features}")
         self.logger.debug(f"Dropout: {dropout}")
@@ -61,6 +62,6 @@ class GIN(Model):
         # Readout.
         x = global_add_pool(x, batch)
         # Classification FC.
-        x = self.fc(x)
+        x = torch.sigmoid(self.fc(x))
 
         return x

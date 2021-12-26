@@ -195,7 +195,7 @@ class ConnectivityDenseNet(Model):
 
         # Classification head.
         self.readout = readout
-        self.fc = nn.Linear(num_out_features[-1], 2)
+        self.fc = nn.Linear(num_out_features[-1], 1)
 
         self.logger.debug(f"Num hidden features: {num_hidden_features}")
         self.logger.debug(f"Dropout: {dropout}")
@@ -228,8 +228,8 @@ class ConnectivityDenseNet(Model):
         elif self.readout == "max":
             x = torch.max(x, dim=1).values
 
-        # Return binary logits.
-        return self.fc(x)
+        # Return probabilities.
+        return torch.sigmoid(self.fc(x))
 
     def plot_fc_matrix(self, epoch, sublayer=0):
         # TODO: Adapt for any connectivity mode.

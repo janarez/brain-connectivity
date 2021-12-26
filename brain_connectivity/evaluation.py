@@ -35,8 +35,8 @@ class ModelEvaluation:
         Calculates confusion matrix between predicted and true labels for single batch.
         Saves running totals.
         """
-        pred_positives = predicted == 1
-        label_positives = labels == 1
+        pred_positives = predicted > 0.5
+        label_positives = labels > 0.5
 
         self.tp += (pred_positives & label_positives).sum().item()
         self.tn += (~pred_positives & ~label_positives).sum().item()
