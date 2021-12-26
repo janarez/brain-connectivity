@@ -63,13 +63,13 @@ def iaaft_surrogates(
     Note: The default parameters of `surrogates.iaaft` are taken from `nolitsa` module.
     """
     sur_func = partial(surrogates.iaaft, maxiter=maxiter, atol=atol, rtol=rtol)
-    return _get_surrogates(timeseries, upsample, sur_func)[..., 0]
+    return _get_surrogates(timeseries, upsample, sur_func)
 
 
 def _get_surrogates(timeseries, upsample, sur_func):
     samples, regions, ts_length = timeseries.shape
     # Placeholder array.
-    ts_surrogates = np.empty((upsample, samples, regions, ts_length))
+    ts_surrogates = np.empty((samples, upsample, regions, ts_length))
 
     # Each sample get `upsample` new timeseries for each region.
     assert upsample > 0, f"Must `upsample` by positive integer, got {upsample}."
@@ -78,7 +78,7 @@ def _get_surrogates(timeseries, upsample, sur_func):
             for region in range(regions):
                 ts_surrogates[sample][i][region] = sur_func(
                     timeseries[sample][region]
-                )[0]
+                )
     return ts_surrogates
 
 
