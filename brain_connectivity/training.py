@@ -124,7 +124,7 @@ class Trainer:
             else None
         )
         self.evaluation.set_fold(fold)
-        self.writer = SummaryWriter(os.path.join(self.log_folder), fold)
+        self.writer = SummaryWriter(os.path.join(self.log_folder, str(fold)))
 
         for epoch in range(self.epochs):
             # Train epoch.
@@ -209,16 +209,17 @@ class Trainer:
 
             # Calculate evaluation metrics.
             if evaluate:
-                predicted = outputs.argmax(dim=1)
-                # labels = torch.nonzero(data.y, as_tuple=True)[1]
-                labels = data.y.view(-1)
-                self.evaluation.evaluate(predicted, labels)
-
-        # Update learning rate.
-        if self.scheduler is not None and backpropagate:
-            self.scheduler.step()
+                self.evaluation.evaluate(outputs.view(-1), data.y.view(-1))
 
         epoch_loss = running_loss / len(dataloader)
+
+        # Update learning rate.
+        if self.scheduler is not None and not backpropagate:
+            self.scheduler.step(epoch_loss)
+            self.logger.debug(
+                f"Epoch {epoch}: learning rate = {self.optimizer.param_groups[0]['lr']}"
+            )
+
         self.writer.add_scalar(f"{dataset} loss", epoch_loss, epoch)
         return epoch_loss
 
@@ -226,7 +227,7 @@ class Trainer:
         self.optimizer.zero_grad()
         outputs = model(data)
 
-        loss = self.criterion(outputs, data.y)
+        loss = self.criterion(outputs.view(-1), data.y)
         if backpropagate:
             loss.backward()
             self.optimizer.step()
@@ -234,64 +235,40 @@ class Trainer:
         return loss.item(), outputs
 
 
-def init_dense_traning(
+def init_traning(
+    model_type,
     log_folder,
+    data_folder,
     device,
     hyperparameters,
     targets,
     model_params,
-    dataset_params,
     training_params,
 ):
+    model_class = GIN if model_type == "graph" else ConnectivityDenseNet
+    specific_model_param_names = (
+        graph_param_names if model_type == "graph" else dense_param_names
+    )
     # Init model.
-    model = ConnectivityDenseNet(
+    model = model_class(
         log_folder,
         **model_params,
         **{k: hyperparameters[k] for k in model_param_names},
-        **{k: hyperparameters[k] for k in dense_param_names},
+        **{k: hyperparameters[k] for k in specific_model_param_names},
     ).to(device)
-    data, trainer = _init_training(
-        log_folder, hyperparameters, targets, dataset_params, training_params
-    )
-    return model, data, trainer
 
-
-def init_geometric_traning(
-    log_folder,
-    device,
-    hyperparameters,
-    targets,
-    model_params,
-    dataset_params,
-    training_params,
-):
-    # Init model.
-    model = GIN(
-        log_folder,
-        **model_params,
-        **{k: hyperparameters[k] for k in model_param_names},
-        **{k: hyperparameters[k] for k in graph_param_names},
-    ).to(device)
-    data, trainer = _init_training(
-        log_folder, hyperparameters, targets, dataset_params, training_params
-    )
-    return model, data, trainer
-
-
-def _init_training(
-    log_folder, hyperparameters, targets, dataset_params, training_params
-):
-    # Init dataset.
     data = FunctionalConnectivityDataset(
         targets=targets,
-        **dataset_params,
+        data_folder=data_folder,
+        device=device,
         **{k: hyperparameters[k] for k in dataset_param_names},
         log_folder=log_folder,
     )
-    # Init trainer.
+
     trainer = Trainer(
         **training_params,
         **{k: hyperparameters[k] for k in training_param_names},
         log_folder=log_folder,
     )
-    return data, trainer
+
+    return model, data, trainer
