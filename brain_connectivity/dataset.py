@@ -11,6 +11,7 @@ import torch_geometric
 from .data_utils import (
     DenseDataset,
     aaft_surrogates,
+    calculate_correlation_matrix,
     dotdict_collate,
     iaaft_surrogates,
     identity_matrix,
@@ -112,8 +113,8 @@ class FunctionalConnectivityDataset:
 
         # Not even non-upsampled data were cached.
         if raw_matrices is None:
-            raw_matrices = self._calculate_correlation_matrix(
-                correlation_type, ts
+            raw_matrices = self.calculate_correlation_matrix(
+                ts, correlation_type
             )
             # Cache.
             with open(path, "wb") as f:
@@ -128,25 +129,14 @@ class FunctionalConnectivityDataset:
                 raise ValueError(
                     f"Got {upsample_ts_method} and {upsample_ts}, accepting 'aaft' or 'iaaft', plus positive int."
                 )
-            raw_surrogates = self._calculate_correlation_matrix(
-                correlation_type, surrogates.reshape(-1, *surrogates.shape[-2:])
+            raw_surrogates = calculate_correlation_matrix(
+                surrogates.reshape(-1, *surrogates.shape[-2:]), correlation_type
             ).reshape(*surrogates.shape[:-1], -1)
             # Cache.
             with open(surr_path, "wb") as f:
                 pickle.dump(raw_surrogates, f)
 
         return raw_matrices, raw_surrogates
-
-    def _calculate_correlation_matrix(self, correlation_type, timeseries):
-        # Placeholder correlation matrices.
-        num_subjects, num_regions, _ = timeseries.shape
-        raw_matrices = np.empty((num_subjects, num_regions, num_regions))
-        for i, ts in enumerate(timeseries):
-            # TODO: Support partial corr via pinqouin's `pcorr`.
-            raw_matrices[i] = pd.DataFrame(ts).T.corr(
-                method=correlation_type.value
-            )
-        return raw_matrices
 
     def _get_node_features_function(self, sur=False):
         """

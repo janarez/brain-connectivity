@@ -6,6 +6,11 @@ using the `reload` module function.
 """
 
 from enum import Enum, auto
+from functools import partial
+
+import numpy as np
+
+from .data_utils import granger_causality, xicorr
 
 
 class CustomEnum(Enum):
@@ -30,10 +35,16 @@ class ConnectivityMode(CustomEnum):
 
 
 class CorrelationType(CustomEnum):
-    "Different types of correlation for the raw timeseries."
+    "Different types of correlation / causality for the raw timeseries."
     PEARSON = "pearson"
     SPEARMAN = "spearman"
-    PARTIAL_PEARSON = "partial_pearson"
+    # Need to wrap function to make it an attribute, not method definition.
+    XI = partial(xicorr)
+    GRANGER = np.vectorize(granger_causality, signature="(n),(n)->()")
+
+    @property
+    def is_symmetric(self):
+        return False if self is CorrelationType.GRANGER else True
 
 
 class DataThresholdingType(CustomEnum):

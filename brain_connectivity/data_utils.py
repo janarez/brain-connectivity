@@ -3,11 +3,15 @@ from itertools import product
 from typing import List
 
 import numpy as np
+import pandas as pd
+import statsmodels.api as sm
 import torch
 from nolitsa import surrogates
 from sklearn.model_selection import ParameterGrid, StratifiedKFold
 from torch.utils.data.dataloader import default_collate
 from torch.utils.data.dataset import Dataset
+
+from brain_connectivity.enums import CorrelationType
 
 
 class dotdict(dict):
@@ -77,6 +81,47 @@ def _get_surrogates(timeseries, upsample, sur_func):
                     timeseries[sample][region]
                 )
     return ts_surrogates
+
+
+def calculate_correlation_matrix(timeseries, correlation_type: CorrelationType):
+    # Placeholder matrices.
+    num_subjects, num_regions, _ = timeseries.shape
+    corr_matrices = np.empty((num_subjects, num_regions, num_regions))
+
+    for i, ts in enumerate(timeseries):
+        if correlation_type.is_symmetric:
+            corr_matrices[i] = pd.DataFrame(ts).T.corr(
+                method=correlation_type.value
+            )
+        else:
+            corr_matrices[i] = correlation_type.value(ts[:, None], ts)
+    return corr_matrices
+
+
+def xicorr(X: np.array, Y: np.array):
+    """
+    Correlation metrics from: https://arxiv.org/abs/1910.12327.
+    Copied from: https://github.com/czbiohub/xicor/issues/17.
+    """
+    n = X.size
+    xi = np.argsort(X, kind="quicksort")
+    Y = Y[xi]
+    _, b, c = np.unique(Y, return_counts=True, return_inverse=True)
+    r = np.cumsum(c)[b]
+    _, b, c = np.unique(-Y, return_counts=True, return_inverse=True)
+    l = np.cumsum(c)[b]
+    return 1 - n * np.abs(np.diff(r)).sum() / (2 * (l * (n - l)).sum())
+
+
+def granger_causality(X: np.array, Y: np.array, lag: int = 1):
+    """
+    Granger causality chi2 test for a given `lag`.
+    """
+    # Conform to `statsmodels` package API.
+    x = np.vstack([X, Y]).T
+
+    res = sm.tsa.stattools.grangercausalitytests(x, maxlag=[lag], verbose=False)
+    return res[lag][0]["ssr_chi2test"][1]
 
 
 class StratifiedCrossValidation:
