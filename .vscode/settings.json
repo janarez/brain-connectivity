@@ -1,0 +1,25 @@
+{
+  "python.pythonPath": ".venv\\Scripts\\python.exe",
+  "git.ignoreLimitWarning": true,
+  "[python]": {
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": true
+    }
+  },
+  "python.formatting.blackArgs": ["--line-length", "80"],
+  "python.formatting.provider": "black",
+  "editor.formatOnSave": true,
+  "python.linting.enabled": true,
+  "python.linting.pylintEnabled": true,
+  "python.sortImports.args": [
+    "--profile",
+    "black"
+  ],
+  "notebook.output.textLineLimit": 500,
+  "python.linting.flake8Enabled": true,
+  "python.linting.flake8Args": [
+    // E501: Too long line. We ignore these for strings and rest is handled by black.
+    // W503: Flake8 inconsistency. Binary operator should be after new line.
+    "--ignore", "E501,W503"
+  ]
+}

@@ -1,5 +1,5 @@
 /.venv/
-/.vscode/
+.vscode/launch.json
 
 /data/
 /pickles/

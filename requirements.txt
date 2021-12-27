@@ -2,15 +2,10 @@ pandas==1.2.3
 matplotlib==3.4.1
 numpy==1.18.5
 scikit-learn==0.24.1
-tsfresh==0.18.0
 ipykernel==5.5.3
 seaborn==0.11.1
-statsmodels==0.12.2
-pingouin==0.3.11
-networkx==2.5
+statsmodels==0.13.1
 scipy==1.6.2
-grad-cam==1.2.7
-opencv-python==4.5.1.48
 ttach==0.0.3
 torch==1.8.0+cu111
 torch-scatter==2.0.6
