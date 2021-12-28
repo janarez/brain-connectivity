@@ -269,7 +269,7 @@ class FunctionalConnectivityDataset:
         )
 
     def dense_loader(self, dataset, indices):
-        "Train dataloader with data for dense neural network."
+        "Dataloader with data for dense neural network."
         self._log_loader_stats(dataset, indices)
         return torch.utils.data.dataloader.DataLoader(
             self._get_dense_dataset(indices),
@@ -277,6 +277,23 @@ class FunctionalConnectivityDataset:
             shuffle=True if dataset in ["train", "dev"] else False,
             collate_fn=dotdict_collate,
         )
+
+    def ml_loader(self, dataset, indices, flatten):
+        "Data for standard machine learning algorithms as X, y matrices."
+        self._log_loader_stats(dataset, indices)
+        # Flattens full matrix.
+        if flatten == "all":
+            X = np.reshape(
+                self.raw_fc_matrices[indices],
+                (-1, self.num_regions * self.num_regions),
+            )
+        # Flattens only upper triangle without diagonal.
+        elif flatten == "triag":
+            X = [
+                np.hstack([row[i + 1 :] for i, row in enumerate(sample)])
+                for sample in self.raw_fc_matrices[indices]
+            ]
+        return X, self.targets[indices]
 
     def _log_loader_stats(self, dataset, indices):
         dataset = dataset.title()
