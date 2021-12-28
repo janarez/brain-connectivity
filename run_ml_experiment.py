@@ -197,7 +197,7 @@ if __name__ == "__main__":
         general_utils.close_logger("cv")
 
 for k in scoring.keys():
-    logger.info(
+    exp_logger.info(
         f"Exp {k}: {np.mean(exp_test_results[k]):.4f} ± {np.std(exp_test_results[k]):.4f}"
     )
 general_utils.close_all_loggers()
