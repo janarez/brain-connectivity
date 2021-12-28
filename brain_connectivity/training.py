@@ -2,7 +2,7 @@
 Contains general training class for training any model.
 """
 import os
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 import torch
@@ -21,12 +21,27 @@ from .model import Model
 def stringify(d):
     return "_".join(
         [
-            f"{''.join([w[0] for w in k.split('_')])}={v}"
+            f"{''.join([w[0] for w in k.split('_')])}={v if not isinstance(v, Callable) else v.__name__}"
             if type(v) != dict
             else stringify(v)
             for k, v in d.items()
         ]
     )
+
+
+def cosine_loss(input, target):
+    """
+    Function that measures cosine loss between the target and input probabilities.
+    Mean reduction.
+    From paper: https://arxiv.org/pdf/1901.09054.pdf.
+    """
+    # We can do just dot product since both vectors are already normalized.
+    cosine_dissimilarity = 1 - torch.sum(
+        torch.vstack([1 - input, input]).T
+        * torch.nn.functional.one_hot(target.long(), num_classes=2),
+        axis=1,
+    )
+    return torch.mean(cosine_dissimilarity)
 
 
 model_param_names = [
@@ -53,7 +68,7 @@ dataset_param_names = [
     "batch_size",
     "geometric_kwargs",
 ]
-training_param_names = ["epochs", "optimizer_kwargs"]
+training_param_names = ["epochs", "optimizer_kwargs", "criterion"]
 
 
 class Trainer:
@@ -224,7 +239,7 @@ class Trainer:
         self.writer.add_scalar(f"{dataset} loss", epoch_loss, epoch)
         return epoch_loss
 
-    def _model_step(self, model, data, backpropagate: bool = True):
+    def _model_step(self, model, data, backpropagate: bool):
         self.optimizer.zero_grad()
         outputs = model(data)
 
