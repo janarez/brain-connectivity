@@ -4,7 +4,6 @@ from functools import partial
 from typing import Optional
 
 import numpy as np
-import pandas as pd
 import torch
 import torch_geometric
 
@@ -113,9 +112,7 @@ class FunctionalConnectivityDataset:
 
         # Not even non-upsampled data were cached.
         if raw_matrices is None:
-            raw_matrices = self.calculate_correlation_matrix(
-                ts, correlation_type
-            )
+            raw_matrices = calculate_correlation_matrix(ts, correlation_type)
             # Cache.
             with open(path, "wb") as f:
                 pickle.dump(raw_matrices, f)

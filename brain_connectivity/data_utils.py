@@ -11,8 +11,6 @@ from sklearn.model_selection import ParameterGrid, StratifiedKFold
 from torch.utils.data.dataloader import default_collate
 from torch.utils.data.dataset import Dataset
 
-from brain_connectivity.enums import CorrelationType
-
 
 class dotdict(dict):
     "Dictionary that allows accessing elements like attributes."
@@ -83,7 +81,7 @@ def _get_surrogates(timeseries, upsample, sur_func):
     return ts_surrogates
 
 
-def calculate_correlation_matrix(timeseries, correlation_type: CorrelationType):
+def calculate_correlation_matrix(timeseries, correlation_type):
     # Placeholder matrices.
     num_subjects, num_regions, _ = timeseries.shape
     corr_matrices = np.empty((num_subjects, num_regions, num_regions))
@@ -109,7 +107,7 @@ def xicorr(X: np.array, Y: np.array):
     _, b, c = np.unique(Y, return_counts=True, return_inverse=True)
     r = np.cumsum(c)[b]
     _, b, c = np.unique(-Y, return_counts=True, return_inverse=True)
-    l = np.cumsum(c)[b]
+    l = np.cumsum(c)[b]  # noqa E741 (ambiguous name)
     return 1 - n * np.abs(np.diff(r)).sum() / (2 * (l * (n - l)).sum())
 
 
