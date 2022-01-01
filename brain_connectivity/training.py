@@ -9,11 +9,8 @@ import torch
 from torch.utils.tensorboard.writer import SummaryWriter
 from torch_geometric.data.dataloader import DataLoader
 
-from .dataset import FunctionalConnectivityDataset
-from .dense import ConnectivityDenseNet
 from .evaluation import ModelEvaluation
 from .general_utils import close_logger, get_logger
-from .graph import GIN
 from .model import Model
 
 
@@ -44,40 +41,18 @@ def cosine_loss(input, target):
     return torch.mean(cosine_dissimilarity)
 
 
-model_param_names = [
-    "num_hidden_features",
-    "num_sublayers",
-    "dropout",
-]
-dense_param_names = [
-    "mode",
-    "num_nodes",
-    "readout",
-    "emb_dropout",
-    "emb_residual",
-    "emb_init_weights",
-    "emb_val",
-    "emb_std",
-]
-graph_param_names = ["eps"]
-dataset_param_names = [
-    "upsample_ts",
-    "upsample_ts_method",
-    "correlation_type",
-    "node_features",
-    "batch_size",
-    "geometric_kwargs",
-]
-training_param_names = [
-    "epochs",
-    "optimizer_kwargs",
-    "criterion",
-    "scheduler_kwargs",
-]
-
-
 class Trainer:
     # TODO: Write class docstring.
+
+    hyperparameters = [
+        "epochs",
+        "optimizer",
+        "optimizer_kwargs",
+        "criterion",
+        "scheduler",
+        "scheduler_kwargs",
+    ]
+
     def __init__(
         self,
         log_folder,
@@ -254,42 +229,3 @@ class Trainer:
             self.optimizer.step()
 
         return loss.item(), outputs
-
-
-def init_traning(
-    model_type,
-    log_folder,
-    data_folder,
-    device,
-    hyperparameters,
-    targets,
-    model_params,
-    training_params,
-):
-    # Prepare model.
-    model_class = GIN if model_type == "graph" else ConnectivityDenseNet
-    specific_model_param_names = (
-        graph_param_names if model_type == "graph" else dense_param_names
-    )
-    model_arguments = {
-        **model_params,
-        **{k: hyperparameters[k] for k in model_param_names},
-        **{k: hyperparameters[k] for k in specific_model_param_names},
-    }
-    model_class.log(log_folder, model_arguments)
-
-    data = FunctionalConnectivityDataset(
-        targets=targets,
-        data_folder=data_folder,
-        device=device,
-        **{k: hyperparameters[k] for k in dataset_param_names},
-        log_folder=log_folder,
-    )
-
-    trainer = Trainer(
-        **training_params,
-        **{k: hyperparameters[k] for k in training_param_names},
-        log_folder=log_folder,
-    )
-
-    return model_class, model_arguments, data, trainer

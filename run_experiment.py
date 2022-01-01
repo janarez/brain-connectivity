@@ -1,5 +1,4 @@
 import argparse
-import copy
 import logging
 import os
 from collections import defaultdict
@@ -8,15 +7,35 @@ import numpy as np
 import pandas as pd
 import torch
 
-from brain_connectivity import data_utils, general_utils, training
+from brain_connectivity import (
+    data_utils,
+    dataset,
+    dense,
+    general_utils,
+    graph,
+    training,
+)
 from hyperparameters import (
+    common_hyperparameters,
     dense_hyperparameters,
     graph_hyperparameters,
     model_params,
     training_params,
 )
 
-targets = None
+model_map = {
+    "graph": graph.GIN,
+    "matrix": dense.ConnectivityDenseNet,
+    "all": dense.DenseNet,
+    "triag": dense.DenseNet,
+}
+
+hyperparameters_map = {
+    "graph": graph_hyperparameters,
+    "matrix": dense_hyperparameters,
+    "all": common_hyperparameters,
+    "triag": common_hyperparameters,
+}
 
 
 def collect_results(results, next_result, key):
@@ -31,6 +50,41 @@ def log_results(results, results_name, logger=logging):
         )
 
 
+def init_traning(
+    model_class,
+    log_folder,
+    data_folder,
+    device,
+    hyperparameters,
+    targets,
+):
+    # Prepare model.
+    model_arguments = {
+        **model_params,
+        **{k: hyperparameters[k] for k in model_class.hyperparameters},
+    }
+    model_class.log(log_folder, model_arguments)
+
+    data = dataset.FunctionalConnectivityDataset(
+        targets=targets,
+        data_folder=data_folder,
+        device=device,
+        **{
+            k: hyperparameters[k]
+            for k in dataset.FunctionalConnectivityDataset.hyperparameters
+        },
+        log_folder=log_folder,
+    )
+
+    trainer = training.Trainer(
+        **training_params,
+        **{k: hyperparameters[k] for k in training.Trainer.hyperparameters},
+        log_folder=log_folder,
+    )
+
+    return model_arguments, data, trainer
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Runs two stage cross validation experiment.",
@@ -43,7 +97,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "model_type",
         help="Model to run.",
-        choices=["graph", "dense"],
+        choices=["graph", "matrix", "all", "triag"],
     )
     parser.add_argument(
         "target_column",
@@ -126,17 +180,14 @@ if __name__ == "__main__":
         best_std_accuracy = 0
 
         hyperparameter_grid = data_utils.DoubleLevelParameterGrid(
-            graph_hyperparameters
-            if args.model_type == "graph"
-            else dense_hyperparameters
+            hyperparameters_map[args.model_type]
         )
-        logger.info(
+        exp_logger.info(
             f"Selecting from {len(hyperparameter_grid)} hyperparameters."
         )
+        exp_logger.debug(hyperparameter_grid.orig_param_grid)
 
         for hyper_id, hyperparameters in enumerate(hyperparameter_grid):
-            # if hyper_id == 3:
-            #     break
             logger.info(f"Evaluating hyperparameters #{hyper_id:04d}")
             log_folder = os.path.join(
                 args.experiment_folder,
@@ -145,15 +196,14 @@ if __name__ == "__main__":
             )
             os.makedirs(log_folder, exist_ok=False)
 
-            model_class, model_arguments, data, trainer = training.init_traning(
-                args.model_type,
+            model_class = model_map[args.model_type]
+            model_arguments, data, trainer = init_traning(
+                model_class,
                 log_folder,
                 args.data_folder,
                 device,
                 hyperparameters,
                 targets,
-                model_params=model_params,
-                training_params=training_params,
             )
 
             # Run training.
@@ -167,14 +217,19 @@ if __name__ == "__main__":
                     model=model_class(**model_arguments).to(device),
                     named_trainloader=(
                         train_dataset,
+                        # TODO: Variable loaders.
                         data.dense_loader(
-                            dataset=train_dataset, indices=cv.train_indices
+                            dataset=train_dataset,
+                            indices=cv.train_indices,
+                            view=args.model_type,
                         ),
                     ),
                     named_evalloader=(
                         eval_dataset,
                         data.dense_loader(
-                            dataset=eval_dataset, indices=cv.val_indices
+                            dataset=eval_dataset,
+                            indices=cv.val_indices,
+                            view=args.model_type,
                         ),
                     ),
                     fold=inner_id,
@@ -190,6 +245,9 @@ if __name__ == "__main__":
             # Update best setting based on eval accuracy
             max_mean_accuracy = eval_results["accuracy"][0][-1]
             max_std_accuracy = eval_results["accuracy"][1][-1]
+            logger.info(
+                f"Val accuracy: {max_mean_accuracy:.4f} ± {max_std_accuracy:.4f}"
+            )
 
             if (max_mean_accuracy - max_std_accuracy) > (
                 best_mean_accuracy - best_std_accuracy
@@ -197,6 +255,10 @@ if __name__ == "__main__":
                 best_hyperparameters = hyperparameters
                 best_mean_accuracy = max_mean_accuracy
                 best_std_accuracy = max_std_accuracy
+                logger.info(
+                    f"New best val accuracy: {best_mean_accuracy:.4f} ± {best_std_accuracy:.4f}"
+                )
+                logger.info(f"New best hyperparameters: {best_hyperparameters}")
 
         # Model assessment.
         logger.info(f"Best hyperparameters: {best_hyperparameters}")
@@ -213,15 +275,14 @@ if __name__ == "__main__":
             )
             os.makedirs(log_folder, exist_ok=False)
 
-            model_class, model_arguments, data, trainer = training.init_traning(
-                args.model_type,
+            model_class = model_map[args.model_type]
+            model_arguments, data, trainer = init_traning(
+                model_class,
                 log_folder,
                 args.data_folder,
                 device,
                 best_hyperparameters,
                 targets,
-                model_params=model_params,
-                training_params=training_params,
             )
             # Run training.
             train_dataset = "dev"
@@ -231,13 +292,17 @@ if __name__ == "__main__":
                 named_trainloader=(
                     train_dataset,
                     data.dense_loader(
-                        dataset=train_dataset, indices=cv.dev_indices
+                        dataset=train_dataset,
+                        indices=cv.dev_indices,
+                        view=args.model_type,
                     ),
                 ),
                 named_evalloader=(
                     eval_dataset,
                     data.dense_loader(
-                        dataset=eval_dataset, indices=cv.test_indices
+                        dataset=eval_dataset,
+                        indices=cv.test_indices,
+                        view=args.model_type,
                     ),
                 ),
                 fold=0,
