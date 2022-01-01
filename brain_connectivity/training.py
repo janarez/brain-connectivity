@@ -13,7 +13,7 @@ from .dataset import FunctionalConnectivityDataset
 from .dense import ConnectivityDenseNet
 from .evaluation import ModelEvaluation
 from .general_utils import close_logger, get_logger
-from .gin import GIN
+from .graph import GIN
 from .model import Model
 
 
@@ -68,7 +68,12 @@ dataset_param_names = [
     "batch_size",
     "geometric_kwargs",
 ]
-training_param_names = ["epochs", "optimizer_kwargs", "criterion"]
+training_param_names = [
+    "epochs",
+    "optimizer_kwargs",
+    "criterion",
+    "scheduler_kwargs",
+]
 
 
 class Trainer:
