@@ -29,6 +29,15 @@ class FunctionalConnectivityDataset:
     TODO: Write class docstring.
     """
 
+    hyperparameters = [
+        "upsample_ts",
+        "upsample_ts_method",
+        "correlation_type",
+        "node_features",
+        "batch_size",
+        "graph_kwargs",
+    ]
+
     def __init__(
         self,
         log_folder,
@@ -40,7 +49,7 @@ class FunctionalConnectivityDataset:
         correlation_type: CorrelationType = CorrelationType.PEARSON,
         node_features: NodeFeatures = NodeFeatures.FC_MATRIX_ROW,
         batch_size: int = 8,
-        geometric_kwargs: Optional[dict] = None,
+        graph_kwargs: Optional[dict] = None,
     ):
         self.logger = get_logger(
             "dataset", os.path.join(log_folder, "dataset.txt")
@@ -57,14 +66,14 @@ class FunctionalConnectivityDataset:
 
         # Parameters for setting up node features.
         self.node_features = node_features
-        self.geometric_kwargs = geometric_kwargs
+        self.graph_kwargs = graph_kwargs
 
         self.logger.debug(f"Upsample timeseries: {upsample_ts}")
         self.logger.debug(f"Upsample timeseries method: {upsample_ts_method}")
         self.logger.debug(f"Correlation: {correlation_type}")
         self.logger.debug(f"Node features: {node_features}")
         self.logger.debug(f"Batch size: {batch_size}")
-        self.logger.debug(f"Geometric kwargs: {geometric_kwargs}")
+        self.logger.debug(f"Graph kwargs: {graph_kwargs}")
 
     def _get_raw_matrices(
         self, correlation_type, upsample_ts, upsample_ts_method, data_folder
@@ -157,35 +166,52 @@ class FunctionalConnectivityDataset:
             )
         return node_features_function
 
-    def _get_dense_dataset(self, indices):
+    def _get_dense_dataset(self, indices, view):
         node_features_function = self._get_node_features_function()
+        X = self._get_dense_view(node_features_function(indices), view=view)
+        y = torch.from_numpy(self.targets[indices])
         orig_dataset = DenseDataset(
-            node_features_function(indices).to(torch.float32).to(self.device),
-            torch.from_numpy(self.targets[indices])
-            .to(torch.float32)
-            .to(self.device),
+            X.to(torch.float32).to(self.device),
+            y.to(torch.float32).to(self.device),
         )
 
         # Append surrogate data.
         if self.raw_fc_surrogates is not None:
             node_features_function = self._get_node_features_function(sur=True)
-            sur_dataset = DenseDataset(
+            X = self._get_dense_view(
                 node_features_function(indices)
                 # Merge index and upsample dims into one.
-                .view(-1, self.num_regions, self.num_regions)
-                .to(torch.float32)
-                .to(self.device),
-                torch.from_numpy(self.targets[indices])
+                .view(-1, self.num_regions, self.num_regions),
+                view=view,
+            )
+            y = torch.from_numpy(self.targets[indices]).repeat_interleave(
                 # Labels must be repeated `upsample` times.
-                .repeat_interleave(self.raw_fc_surrogates.shape[1])
-                .to(torch.float32)
-                .to(self.device),
+                self.raw_fc_surrogates.shape[1]
+            )
+
+            sur_dataset = DenseDataset(
+                X.to(torch.float32).to(self.device),
+                y.to(torch.float32).to(self.device),
             )
             return orig_dataset + sur_dataset
 
         return orig_dataset
 
-    def _get_geometric_dataset(self, indices):
+    def _get_dense_view(self, x, view):
+        # Flattens full matrix.
+        if view == "all":
+            x = x.reshape((-1, x.shape[-1] ** 2))
+        # Flattens only upper triangle without diagonal.
+        elif view == "triag":
+            x = [
+                np.hstack(
+                    [row[i + 1 :] for i, row in enumerate(sample)]  # noqa E203
+                )
+                for sample in x
+            ]
+        return x
+
+    def _get_graph_dataset(self, indices):
         """
         `Data` object fields
 
@@ -197,7 +223,7 @@ class FunctionalConnectivityDataset:
         """
         binary_fc_matrices, _ = create_connectivity_matrices(
             self.raw_fc_matrices[indices],
-            **self.geometric_kwargs,
+            **self.graph_kwargs,
         )
         node_features_function = self._get_node_features_function()
         orig_dataset = [
@@ -223,7 +249,7 @@ class FunctionalConnectivityDataset:
                 self.raw_fc_surrogates[indices].reshape(
                     -1, self.num_regions, self.num_regions
                 ),
-                **self.geometric_kwargs,
+                **self.graph_kwargs,
             ).reshape(len(indices), -1, self.num_regions, self.num_regions)
 
             node_features_function = self._get_node_features_function(sur=True)
@@ -248,31 +274,31 @@ class FunctionalConnectivityDataset:
 
         return orig_dataset
 
-    def geometric_loader(self, dataset, indices):
+    def graph_loader(self, dataset, indices):
         "Dataloader with data for graph neural network."
         self._log_loader_stats(dataset, indices)
         # FIXME: Trainloader needs to be access before val and test loader to set avg diff matrix properly.
         if (
             dataset in ["train", "dev"]
-            and self.geometric_kwargs["thresholding_function"]
+            and self.graph_kwargs["thresholding_function"]
             == ThresholdingFunction.GROUP_AVERAGE
         ):
-            self.geometric_kwargs[
+            self.graph_kwargs[
                 "thresholding_matrix"
             ] = get_matrix_of_avg_diff_between_groups(
                 self.raw_fc_matrices, self.targets, indices
             )
         return torch_geometric.data.DataLoader(
-            self._get_geometric_dataset(indices),
+            self._get_graph_dataset(indices),
             batch_size=self.batch_size,
             shuffle=True if dataset in ["train", "dev"] else False,
         )
 
-    def dense_loader(self, dataset, indices):
+    def dense_loader(self, dataset, indices, view):
         "Dataloader with data for dense neural network."
         self._log_loader_stats(dataset, indices)
         return torch.utils.data.dataloader.DataLoader(
-            self._get_dense_dataset(indices),
+            self._get_dense_dataset(indices, view=view),
             batch_size=self.batch_size,
             shuffle=True if dataset in ["train", "dev"] else False,
             collate_fn=dotdict_collate,
@@ -281,19 +307,9 @@ class FunctionalConnectivityDataset:
     def ml_loader(self, dataset, indices, flatten):
         "Data for standard machine learning algorithms as X, y matrices."
         self._log_loader_stats(dataset, indices)
-        # Flattens full matrix.
-        if flatten == "all":
-            X = np.reshape(
-                self.raw_fc_matrices[indices],
-                (-1, self.num_regions * self.num_regions),
-            )
-        # Flattens only upper triangle without diagonal.
-        elif flatten == "triag":
-            X = [
-                np.hstack([row[i + 1 :] for i, row in enumerate(sample)])
-                for sample in self.raw_fc_matrices[indices]
-            ]
-        return X, self.targets[indices]
+        X = self._get_dense_view(self.raw_fc_matrices[indices], view=flatten)
+        y = self.targets[indices]
+        return X, y
 
     def _log_loader_stats(self, dataset, indices):
         dataset = dataset.title()
