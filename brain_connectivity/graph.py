@@ -21,6 +21,9 @@ class GinMLP(nn.Module):
 
 
 class GIN(Model):
+
+    hyperparameters = ["num_hidden_features", "num_sublayers", "dropout", "eps"]
+
     def __init__(
         self,
         size_in: int,

@@ -127,6 +127,20 @@ class ConnectivityDenseNet(Model):
     Output: [batch_size, 2]
     """
 
+    hyperparameters = [
+        "num_hidden_features",
+        "num_sublayers",
+        "dropout",
+        "mode",
+        "num_nodes",
+        "readout",
+        "emb_dropout",
+        "emb_residual",
+        "emb_init_weights",
+        "emb_val",
+        "emb_std",
+    ]
+
     def __init__(
         self,
         num_nodes: int,
@@ -231,3 +245,62 @@ class ConnectivityDenseNet(Model):
             numpy_fc_matrix.std(),
         )
         plot_fc_matrix(matrix=numpy_fc_matrix, epoch=epoch)
+
+
+class DenseNet(Model):
+    """
+    Emulates Graph isomorphism network using a fully connected alternative.
+
+    Input: [batch_size, num_nodes, num_in_features]
+    Output: [batch_size, 2]
+    """
+
+    hyperparameters = [
+        "num_hidden_features",
+        "num_sublayers",
+        "dropout",
+    ]
+
+    def __init__(
+        self,
+        size_in: int,
+        num_hidden_features: Union[int, List[int]],
+        dropout: float = 0.5,
+        num_sublayers: int = 3,
+    ):
+        super().__init__()
+
+        # Prepare feature mapping dimensions.
+        # TODO: Refactor, it's used in all models.
+        if type(num_hidden_features) is int:
+            num_out_features = np.repeat(num_hidden_features, num_sublayers)
+        else:
+            num_out_features = num_hidden_features
+        num_in_features = np.hstack([[size_in ** 2], num_out_features])
+
+        # Create model stacked from linear sublayers.
+        self.sublayers = nn.ModuleList(
+            [
+                nn.Linear(size_in, size_out)
+                for size_in, size_out in zip(num_in_features, num_out_features)
+            ]
+        )
+        self.dropout = nn.Dropout(p=dropout)
+
+        # Classification head.
+        self.fc = nn.Linear(num_out_features[-1], 1)
+
+    def forward(self, data):
+        x = data.x
+
+        # Run sample through model.
+        for sublayer in self.sublayers:
+            x = sublayer(x)
+            x = self.dropout(x)
+
+        # Return probabilities.
+        return torch.sigmoid(self.fc(x))
+
+    def plot_fc_matrix(self, epoch, sublayer=0):
+        # TODO: Adapt for any connectivity mode.
+        raise NotImplementedError
