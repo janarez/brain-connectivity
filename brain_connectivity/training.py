@@ -1,6 +1,7 @@
 """
 Contains general training class for training any model.
 """
+import contextlib
 import os
 from typing import Callable, Optional, Tuple
 
@@ -191,33 +192,36 @@ class Trainer:
         evaluate: bool,
     ):
         backpropagate = dataset in ["train", "dev"]
-        running_loss = 0.0
         if backpropagate:
             model.train()
+            cm = contextlib.nullcontext()
         else:
             model.eval()
+            cm = torch.no_grad()
 
-        for data in dataloader:
-            loss, outputs = self._model_step(
-                model, data, backpropagate=backpropagate
-            )
-            running_loss += loss
+        with cm:
+            running_loss = 0.0
+            for data in dataloader:
+                loss, outputs = self._model_step(
+                    model, data, backpropagate=backpropagate
+                )
+                running_loss += loss
 
-            # Calculate evaluation metrics.
-            if evaluate:
-                self.evaluation.evaluate(outputs.view(-1), data.y.view(-1))
+                # Calculate evaluation metrics.
+                if evaluate:
+                    self.evaluation.evaluate(outputs.view(-1), data.y.view(-1))
 
-        epoch_loss = running_loss / len(dataloader)
+            epoch_loss = running_loss / len(dataloader)
 
-        # Update learning rate.
-        if self.scheduler is not None and not backpropagate:
-            self.scheduler.step(epoch_loss)
-            self.logger.debug(
-                f"Epoch {epoch}: learning rate = {self.optimizer.param_groups[0]['lr']}"
-            )
+            # Update learning rate.
+            if self.scheduler is not None and not backpropagate:
+                self.scheduler.step(epoch_loss)
+                self.logger.debug(
+                    f"Epoch {epoch}: learning rate = {self.optimizer.param_groups[0]['lr']}"
+                )
 
-        self.writer.add_scalar(f"{dataset} loss", epoch_loss, epoch)
-        return epoch_loss
+            self.writer.add_scalar(f"{dataset} loss", epoch_loss, epoch)
+            return epoch_loss
 
     def _model_step(self, model, data, backpropagate: bool):
         self.optimizer.zero_grad()
