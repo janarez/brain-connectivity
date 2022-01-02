@@ -34,7 +34,9 @@ def get_logger(name: str, filename: str):
             + "Not attaching new file handler."
         )
     else:
-        file_handler = logging.FileHandler(filename=filename, mode="a")
+        file_handler = logging.FileHandler(
+            filename=filename, mode="a", encoding="utf-8"
+        )
         file_handler.setFormatter(formatter)
         child_logger.addHandler(file_handler)
         loggers[name] = child_logger
@@ -61,4 +63,8 @@ def close_all_loggers():
 def set_model_random_state(random_seed: Optional[int]):
     np.random.seed(random_seed)
     random.seed(random_seed)
-    torch.manual_seed(random_seed)
+    # Torch has separate functions instead of passing `None` directly.
+    if random_seed is not None:
+        torch.manual_seed(random_seed)
+    else:
+        torch.seed()
