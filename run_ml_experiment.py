@@ -96,6 +96,13 @@ if __name__ == "__main__":
         default=10,
         nargs="?",
     )
+    parser.add_argument(
+        "--random_cv_seed",
+        help="Random seed for cross validation.",
+        type=int,
+        default=None,
+        nargs="?",
+    )
     args = parser.parse_args()
 
     os.makedirs(args.experiment_folder, exist_ok=False)
@@ -116,7 +123,7 @@ if __name__ == "__main__":
         targets=targets,
         num_assess_folds=args.num_assess_folds,
         num_select_folds=args.num_select_folds,
-        random_state=0,
+        random_state=args.random_cv_seed,
     )
 
     # Experiment results.

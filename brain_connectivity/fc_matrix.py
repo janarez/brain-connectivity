@@ -5,8 +5,6 @@ import numpy as np
 
 from .enums import DataThresholdingType, ThresholdingFunction
 
-rng = np.random.default_rng(42)
-
 
 def create_connectivity_matrices(
     data,
@@ -185,10 +183,12 @@ def get_data_thresholded_by_random_matrix(
     # Generate random thresholding matrix with values from [-1, 1].
     if per_subject:
         thresholding_matrix = (
-            2 * rng.random((num_subjects, num_regions, num_regions)) - 1
+            2 * np.random.random((num_subjects, num_regions, num_regions)) - 1
         )
     else:
-        thresholding_matrix = 2 * rng.random((1, num_regions, num_regions)) - 1
+        thresholding_matrix = (
+            2 * np.random.random((1, num_regions, num_regions)) - 1
+        )
         thresholding_matrix = np.repeat(
             thresholding_matrix, repeats=num_subjects, axis=0
         )

@@ -1,4 +1,9 @@
 import logging
+import random
+from typing import Optional
+
+import numpy as np
+import torch
 
 formatter = logging.Formatter(
     fmt="%(asctime)s %(levelname)-7s %(name)-15s %(message)s",
@@ -51,3 +56,9 @@ def close_all_loggers():
     logger_names = list(loggers.keys())
     for name in logger_names:
         close_logger(name)
+
+
+def set_model_random_state(random_seed: Optional[int]):
+    np.random.seed(random_seed)
+    random.seed(random_seed)
+    torch.manual_seed(random_seed)

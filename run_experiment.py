@@ -125,6 +125,20 @@ if __name__ == "__main__":
         nargs="?",
     )
     parser.add_argument(
+        "--random_cv_seed",
+        help="Random seed for cross validation.",
+        type=int,
+        default=None,
+        nargs="?",
+    )
+    parser.add_argument(
+        "--random_model_seed",
+        help="Random seed for model initialization.",
+        type=int,
+        default=None,
+        nargs="?",
+    )
+    parser.add_argument(
         "--use_cuda",
         help="If GPU should be used. Fallbacks to 'cpu'.",
         action="store_true",
@@ -142,6 +156,8 @@ if __name__ == "__main__":
         "cuda" if args.use_cuda and torch.cuda.is_available() else "cpu"
     )
     exp_logger.info(f"Device: {device}")
+    exp_logger.info(f"Random CV seed: {args.random_cv_seed}")
+    exp_logger.info(f"Random model seed: {args.random_model_seed}")
 
     # Get targets.
     df = pd.read_csv(
@@ -155,7 +171,7 @@ if __name__ == "__main__":
         targets=targets,
         num_assess_folds=args.num_assess_folds,
         num_select_folds=args.num_select_folds,
-        random_state=0,
+        random_state=args.random_cv_seed,
     )
 
     # Experiment results.
@@ -163,6 +179,7 @@ if __name__ == "__main__":
     exp_test_results = defaultdict(list)
 
     for outer_id in cv.outer_cross_validation():
+        general_utils.set_model_random_state(args.random_model_seed)
         os.makedirs(
             os.path.join(args.experiment_folder, f"{outer_id:03d}"),
             exist_ok=False,
@@ -267,6 +284,7 @@ if __name__ == "__main__":
         )
 
         # Average over 3 runs to offset random initialization.
+        general_utils.set_model_random_state(None)
         test_results = defaultdict(list)
         dev_results = defaultdict(list)
         for test_id in range(3):

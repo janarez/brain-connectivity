@@ -126,9 +126,9 @@ class StratifiedCrossValidation:
     def __init__(
         self,
         targets,
-        num_assess_folds=10,
-        num_select_folds=10,
-        random_state=42,
+        num_assess_folds,
+        num_select_folds,
+        random_state,
     ):
         self.targets = targets
         self.num_assess_folds = num_assess_folds
