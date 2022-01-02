@@ -261,8 +261,8 @@ if __name__ == "__main__":
                 logger.info(f"New best hyperparameters: {best_hyperparameters}")
 
         # Model assessment.
-        logger.info(f"Best hyperparameters: {best_hyperparameters}")
-        logger.info(
+        exp_logger.info(f"Best hyperparameters: {best_hyperparameters}")
+        exp_logger.info(
             f"Best accuracy: {best_mean_accuracy:.4f} ± {best_std_accuracy:.4f}"
         )
 
@@ -314,8 +314,8 @@ if __name__ == "__main__":
             collect_results(dev_results, train_results, key=lambda x: x[0][-1])
             collect_results(test_results, eval_results, key=lambda x: x[0][-1])
 
-        log_results(dev_results, "dev", logger)
-        log_results(test_results, "test", logger)
+        log_results(dev_results, "dev", exp_logger)
+        log_results(test_results, "test", exp_logger)
 
         collect_results(exp_dev_results, dev_results, key=lambda x: np.mean(x))
         collect_results(
