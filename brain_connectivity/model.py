@@ -2,6 +2,7 @@ import inspect
 import os
 
 import torch.nn as nn
+from torchinfo import summary
 
 from .general_utils import close_logger, get_logger
 
@@ -19,6 +20,7 @@ class Model(nn.Module):
             v = kwargs.get(key, value.default)
             logger.debug(f"{' '.join(key.capitalize().split('_'))}: {v}")
 
+        logger.debug(summary(cls.__init__(**kwargs), verbose=2))
         close_logger("model")
 
     def forward(self, x):
