@@ -1,5 +1,7 @@
 import inspect
+import io
 import os
+from contextlib import redirect_stdout
 
 import torch.nn as nn
 from torchinfo import summary
@@ -20,7 +22,10 @@ class Model(nn.Module):
             v = kwargs.get(key, value.default)
             logger.debug(f"{' '.join(key.capitalize().split('_'))}: {v}")
 
-        logger.debug(summary(cls.__init__(**kwargs), verbose=2))
+        # Necessary, because `summary` explicitly calls `print` if verbose is 2.
+        with redirect_stdout(io.StringIO()) as f:
+            summary(cls(**kwargs), verbose=2)
+        logger.debug(f"Architecture:\n{f.getvalue()}")
         close_logger("model")
 
     def forward(self, x):
