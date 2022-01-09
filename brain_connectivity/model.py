@@ -3,6 +3,7 @@ import io
 import os
 from contextlib import redirect_stdout
 
+import numpy as np
 import torch.nn as nn
 from torchinfo import summary
 
@@ -33,3 +34,11 @@ class Model(nn.Module):
 
     def plot_fc_matrix(self, epoch, sublayer):
         raise NotImplementedError
+
+    def _mlp_dimensions(self, size_in, num_hidden_features, num_sublayers):
+        if isinstance(num_hidden_features, int):
+            num_out_features = np.repeat(num_hidden_features, num_sublayers)
+        else:
+            num_out_features = num_hidden_features
+        num_in_features = np.hstack([[size_in], num_out_features])
+        return num_in_features, num_out_features

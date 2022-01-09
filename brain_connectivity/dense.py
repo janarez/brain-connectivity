@@ -1,6 +1,5 @@
 from typing import List, Optional, Union
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -181,11 +180,9 @@ class ConnectivityDenseNet(Model):
         # Else `ConnectivityMode.MULTIPLE`, let each sublayer create its own FC matrix.
 
         # Prepare feature mapping dimensions.
-        if type(num_hidden_features) is int:
-            num_out_features = np.repeat(num_hidden_features, num_sublayers)
-        else:
-            num_out_features = num_hidden_features
-        num_in_features = np.hstack([[size_in], num_out_features])
+        num_in_features, num_out_features = self._mlp_dimensions(
+            size_in, num_hidden_features, num_sublayers
+        )
 
         # Create model stacked from sublayers: connectivity + feature mapping.
         self.sublayers = nn.ModuleList(
@@ -270,13 +267,9 @@ class DenseNet(Model):
     ):
         super().__init__()
 
-        # Prepare feature mapping dimensions.
-        # TODO: Refactor, it's used in all models.
-        if type(num_hidden_features) is int:
-            num_out_features = np.repeat(num_hidden_features, num_sublayers)
-        else:
-            num_out_features = num_hidden_features
-        num_in_features = np.hstack([[size_in ** 2], num_out_features])
+        num_in_features, num_out_features = self._mlp_dimensions(
+            size_in, num_hidden_features, num_sublayers
+        )
 
         # Create model stacked from linear sublayers.
         self.sublayers = nn.ModuleList(

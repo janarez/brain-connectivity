@@ -1,6 +1,5 @@
 from typing import List, Union
 
-import numpy as np
 import torch
 import torch.nn as nn
 from torch_geometric.nn import GINConv, global_add_pool
@@ -34,12 +33,9 @@ class GIN(Model):
     ):
         super(GIN, self).__init__()
 
-        # Prepare feature mapping dimensions.
-        if type(num_hidden_features) is int:
-            num_out_features = np.repeat(num_hidden_features, num_sublayers)
-        else:
-            num_out_features = num_hidden_features
-        num_in_features = np.hstack([[size_in], num_out_features])
+        num_in_features, num_out_features = self._mlp_dimensions(
+            size_in, num_hidden_features, num_sublayers
+        )
 
         self.convs = torch.nn.ModuleList(
             [
