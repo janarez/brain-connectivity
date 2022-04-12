@@ -235,7 +235,7 @@ if __name__ == "__main__":
                     named_trainloader=(
                         train_dataset,
                         # TODO: Variable loaders.
-                        data.dense_loader(
+                        data.dataloader(
                             dataset=train_dataset,
                             indices=cv.train_indices,
                             view=args.model_type,
@@ -243,7 +243,7 @@ if __name__ == "__main__":
                     ),
                     named_evalloader=(
                         eval_dataset,
-                        data.dense_loader(
+                        data.dataloader(
                             dataset=eval_dataset,
                             indices=cv.val_indices,
                             view=args.model_type,
@@ -309,7 +309,7 @@ if __name__ == "__main__":
                 model=model_class(**model_arguments).to(device),
                 named_trainloader=(
                     train_dataset,
-                    data.dense_loader(
+                    data.dataloader(
                         dataset=train_dataset,
                         indices=cv.dev_indices,
                         view=args.model_type,
@@ -317,7 +317,7 @@ if __name__ == "__main__":
                 ),
                 named_evalloader=(
                     eval_dataset,
-                    data.dense_loader(
+                    data.dataloader(
                         dataset=eval_dataset,
                         indices=cv.test_indices,
                         view=args.model_type,

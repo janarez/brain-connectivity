@@ -274,10 +274,16 @@ class FunctionalConnectivityDataset:
 
         return orig_dataset
 
-    def graph_loader(self, dataset, indices):
-        "Dataloader with data for graph neural network."
+    def dataloader(self, dataset, indices, view):
         self._log_loader_stats(dataset, indices)
-        # FIXME: Trainloader needs to be access before val and test loader to set avg diff matrix properly.
+        if view == "graph":
+            return self._graph_loader(dataset, indices)
+        else:
+            return self._dense_loader(dataset, indices, view)
+
+    def _graph_loader(self, dataset, indices):
+        "Dataloader with data for graph neural network."
+        # NOTE: Trainloader needs to be access before val and test loader to set avg diff matrix properly.
         if (
             dataset in ["train", "dev"]
             and self.graph_kwargs["thresholding_function"]
@@ -294,7 +300,7 @@ class FunctionalConnectivityDataset:
             shuffle=True if dataset in ["train", "dev"] else False,
         )
 
-    def dense_loader(self, dataset, indices, view):
+    def _dense_loader(self, dataset, indices, view):
         "Dataloader with data for dense neural network."
         self._log_loader_stats(dataset, indices)
         return torch.utils.data.dataloader.DataLoader(
