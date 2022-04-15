@@ -199,16 +199,21 @@ class FunctionalConnectivityDataset:
 
     def _get_dense_view(self, x, view):
         # Flattens full matrix.
-        if view == "all":
+        if view == "flattened-dense":
             x = x.reshape((-1, x.shape[-1] ** 2))
         # Flattens only upper triangle without diagonal.
-        elif view == "triag":
-            x = [
-                np.hstack(
-                    [row[i + 1 :] for i, row in enumerate(sample)]  # noqa E203
-                )
-                for sample in x
-            ]
+        elif view == "triangular-dense":
+            x = torch.tensor(
+                [
+                    np.hstack(
+                        [
+                            row[i + 1 :]  # noqa E203
+                            for i, row in enumerate(sample)
+                        ]
+                    )
+                    for sample in x
+                ]
+            )
         return x
 
     def _get_graph_dataset(self, indices):
