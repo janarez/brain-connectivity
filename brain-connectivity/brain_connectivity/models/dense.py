@@ -4,9 +4,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .enums import ConnectivityMode
+from ..enums import ConnectivityMode
+from ..visualizations import plot_fc_matrix
 from .model import Model
-from .visualizations import plot_fc_matrix
 
 
 class ConnectivityEmbedding(nn.Module):

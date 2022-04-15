@@ -9,6 +9,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info
 
 meeting-notes.md
 progress-notes.md

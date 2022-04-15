@@ -12,7 +12,7 @@ from torch_geometric.data.dataloader import DataLoader
 
 from .evaluation import ModelEvaluation
 from .general_utils import close_logger, get_logger
-from .model import Model
+from .models.model import Model
 
 
 # Converts dictionary to string, keeps only first letters of words in keys.

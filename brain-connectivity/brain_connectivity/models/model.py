@@ -7,7 +7,7 @@ import numpy as np
 import torch.nn as nn
 from torchinfo import summary
 
-from .general_utils import close_logger, get_logger
+from ..general_utils import close_logger, get_logger
 
 
 class Model(nn.Module):
