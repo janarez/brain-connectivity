@@ -2,11 +2,11 @@
 .vscode/launch.json
 
 /data/
-/pickles/
-/runs/
+pickles/
+runs/
 
 # Byte-compiled / optimized / DLL files
-__pycache__/
+__pycache__
 *.py[cod]
 *$py.class
 *.egg-info

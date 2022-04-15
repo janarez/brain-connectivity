@@ -6,36 +6,35 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 import torch
+from brain_connectivity import data_utils, dataset, general_utils, training
 
-from brain_connectivity import (
-    data_utils,
-    dataset,
-    dense,
-    general_utils,
-    graph,
-    training,
-)
-from hyperparameters import (
-    common_hyperparameters,
-    dense_hyperparameters,
-    graph_hyperparameters,
-    model_params,
-    training_params,
-)
 
-model_map = {
-    "graph": graph.GIN,
-    "matrix": dense.ConnectivityDenseNet,
-    "all": dense.DenseNet,
-    "triag": dense.DenseNet,
-}
+def expand_config(model_type):
+    global model_class
+    global config
+    if model_type == "gin":
+        from brain_connectivity.models.graph import GIN as model_class
 
-hyperparameters_map = {
-    "graph": graph_hyperparameters,
-    "matrix": dense_hyperparameters,
-    "all": common_hyperparameters,
-    "triag": common_hyperparameters,
-}
+        import gin_config as config
+    elif model_type == "connectivity-dense":
+        from brain_connectivity.models.dense import (
+            ConnectivityDenseNet as model_class,
+        )
+
+        import connectivity_dense_config as config
+
+    elif model_type in [
+        "connectivity-dense",
+        "flattened-dense",
+        "triangular-dense",
+    ]:
+        from brain_connectivity.models.dense import DenseNet as model_class
+
+        import connectivity_dense_config as config
+    else:
+        raise ValueError(
+            f"`model_type` ({model_type}) not mapped to class and hyperparams"
+        )
 
 
 def collect_results(results, next_result, key):
@@ -51,7 +50,6 @@ def log_results(results, results_name, logger=logging):
 
 
 def init_traning(
-    model_class,
     log_folder,
     data_folder,
     device,
@@ -60,7 +58,7 @@ def init_traning(
 ):
     # Prepare model.
     model_arguments = {
-        **model_params,
+        **config.model_params,
         **{k: hyperparameters[k] for k in model_class.hyperparameters},
     }
     model_class.log(log_folder, model_arguments)
@@ -77,12 +75,27 @@ def init_traning(
     )
 
     trainer = training.Trainer(
-        **training_params,
+        **config.training_params,
         **{k: hyperparameters[k] for k in training.Trainer.hyperparameters},
         log_folder=log_folder,
     )
 
     return model_arguments, data, trainer
+
+
+def model_type_to_dataloader_view(model_type):
+    if model_type in ["gin", "gat"]:
+        return "graph"
+    elif model_type in [
+        "connectivity-dense",
+        "flattened-dense",
+        "triangular-dense",
+    ]:
+        return model_type
+    else:
+        raise ValueError(
+            f"`model_type` ({model_type}) not mapped to dataloader view."
+        )
 
 
 if __name__ == "__main__":
@@ -97,7 +110,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "model_type",
         help="Model to run.",
-        choices=["graph", "matrix", "all", "triag"],
+        choices=[
+            "gin",
+            "gat",
+            "connectivity-dense",
+            "flattened-dense",
+            "triangular-dense",
+        ],
     )
     parser.add_argument(
         "target_column",
@@ -107,7 +126,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data_folder",
         help="Folder with raw dataset.",
-        default=os.path.normpath("./data"),
+        default=os.path.normpath("../data"),
         nargs="?",
     )
     parser.add_argument(
@@ -144,6 +163,7 @@ if __name__ == "__main__":
         action="store_true",
     )
     args = parser.parse_args()
+    expand_config(args.model_type)
 
     os.makedirs(args.experiment_folder, exist_ok=False)
     exp_logger = general_utils.get_logger(
@@ -197,7 +217,7 @@ if __name__ == "__main__":
         best_std_accuracy = 0
 
         hyperparameter_grid = data_utils.DoubleLevelParameterGrid(
-            hyperparameters_map[args.model_type]
+            config.hyperparameters
         )
         exp_logger.info(
             f"Selecting from {len(hyperparameter_grid)} hyperparameters."
@@ -213,9 +233,7 @@ if __name__ == "__main__":
             )
             os.makedirs(log_folder, exist_ok=False)
 
-            model_class = model_map[args.model_type]
             model_arguments, data, trainer = init_traning(
-                model_class,
                 log_folder,
                 args.data_folder,
                 device,
@@ -238,7 +256,7 @@ if __name__ == "__main__":
                         data.dataloader(
                             dataset=train_dataset,
                             indices=cv.train_indices,
-                            view=args.model_type,
+                            view=model_type_to_dataloader_view(args.model_type),
                         ),
                     ),
                     named_evalloader=(
@@ -246,7 +264,7 @@ if __name__ == "__main__":
                         data.dataloader(
                             dataset=eval_dataset,
                             indices=cv.val_indices,
-                            view=args.model_type,
+                            view=model_type_to_dataloader_view(args.model_type),
                         ),
                     ),
                     fold=inner_id,
@@ -293,9 +311,7 @@ if __name__ == "__main__":
             )
             os.makedirs(log_folder, exist_ok=False)
 
-            model_class = model_map[args.model_type]
             model_arguments, data, trainer = init_traning(
-                model_class,
                 log_folder,
                 args.data_folder,
                 device,
@@ -312,7 +328,7 @@ if __name__ == "__main__":
                     data.dataloader(
                         dataset=train_dataset,
                         indices=cv.dev_indices,
-                        view=args.model_type,
+                        view=model_type_to_dataloader_view(args.model_type),
                     ),
                 ),
                 named_evalloader=(
@@ -320,7 +336,7 @@ if __name__ == "__main__":
                     data.dataloader(
                         dataset=eval_dataset,
                         indices=cv.test_indices,
-                        view=args.model_type,
+                        view=model_type_to_dataloader_view(args.model_type),
                     ),
                 ),
                 fold=0,

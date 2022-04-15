@@ -1,6 +1,5 @@
 import torch
 import torch.nn.functional as F
-
 from brain_connectivity import enums, training
 
 common_hyperparameters = {
@@ -15,11 +14,11 @@ common_hyperparameters = {
         # enums.CorrelationType.SPEARMAN,
         # enums.CorrelationType.XI,
     ],
-    "batch_size": [4, 8, 16, 32],
+    "batch_size": [2],  # , 4, 8],
     # Model.
-    "num_hidden_features": [4, 8, 16, 32],
+    "num_hidden_features": [2, 4],
     "num_sublayers": [1],
-    "dropout": [0.1, 0.3, 0.5],
+    "dropout": [0.5],
     # Training.
     "criterion": [
         F.binary_cross_entropy
@@ -62,8 +61,10 @@ graph_hyperparameters_knn.update(graph_hyperparameters_fixed)
 graph_hyperparameters_knn["graph_kwargs"]["threshold_type"] = [
     enums.DataThresholdingType.KNN
 ]
-graph_hyperparameters_knn["graph_kwargs"]["threshold"] = [5, 10, 20]
-graph_hyperparameters = [graph_hyperparameters_fixed, graph_hyperparameters_knn]
+graph_hyperparameters_knn["graph_kwargs"]["threshold"] = [5]  # , 10, 20]
+graph_hyperparameters = [
+    graph_hyperparameters_fixed
+]  # , graph_hyperparameters_knn]
 
 dense_hyperparameters = {
     "mode": [enums.ConnectivityMode.SINGLE],
@@ -79,7 +80,7 @@ dense_hyperparameters.update(common_hyperparameters)
 
 # Always fixed parameters.
 # ==============================================================================
-model_params = {"size_in": 90}
+model_params = {"size_in": 90}  # FIXME: Or 8100 for dense.
 training_params = {
     # Training regime.
     "validation_frequency": 1,
