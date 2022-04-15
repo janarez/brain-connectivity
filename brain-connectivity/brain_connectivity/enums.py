@@ -58,7 +58,6 @@ class DataThresholdingType(CustomEnum):
 
     KNN = auto()
     FIXED_THRESHOLD = auto()
-    # TODO: Sparsity is not implemented.
     SPARSITY = auto()
 
 

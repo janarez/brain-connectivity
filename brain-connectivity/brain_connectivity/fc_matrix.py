@@ -85,41 +85,21 @@ def get_data_threshold_at_largest_average_difference_between_groups(
     threshold: Union[float, int],
     thresholding_operator: Optional[Union[operator.le, operator.ge]],
 ):
-    num_subjects, num_regions, _ = raw_fc_matrices.shape
+    avg_difference_matrix = np.repeat(
+        np.expand_dims(avg_difference_matrix, 0),
+        repeats=raw_fc_matrices.shape[0],
+        axis=0,
+    )
 
-    # Compute mask.
-    if threshold_type == DataThresholdingType.FIXED_THRESHOLD:
-        assert (
-            type(threshold) == float
-        ), f"Used {type(threshold)} instead of `float` for {DataThresholdingType.FIXED_THRESHOLD}."
-        mask = np.where(
-            thresholding_operator(avg_difference_matrix, threshold), True, False
-        )
-    elif threshold_type == DataThresholdingType.KNN:
-        assert (
-            type(threshold) == int
-        ), f"Used {type(threshold)} instead of `int` for {DataThresholdingType.KNN}."
-        mask = np.zeros((num_regions, num_regions), dtype=bool)
-        # Take top `threshold` neighbors.
-        if thresholding_operator is operator.ge:
-            knn_index = np.argsort(avg_difference_matrix)[:, -threshold:]
-        # Take lowest `threshold` neighbors.
-        else:
-            knn_index = np.argsort(avg_difference_matrix)[:, :threshold]
-        # Mark selected in mask.
-        for r in range(num_regions):
-            mask[r, knn_index[r]] = True
-    elif threshold_type == DataThresholdingType.SPARSITY:
-        raise NotImplementedError()
-
-    # Repeat mask.
-    mask = np.tile(mask, (num_subjects, 1, 1))
-
-    # Transform raw data.
-    binary_fc_matrices = np.where(mask, 1, 0)
-    real_fc_matrices = np.where(mask, raw_fc_matrices, 0)
-
-    return binary_fc_matrices, real_fc_matrices
+    return _get_data_thresholded_by_matrix(
+        raw_fc_matrices,
+        avg_difference_matrix,
+        threshold_type,
+        threshold,
+        thresholding_operator,
+        threshold_by_absolute_value=True,
+        return_absolute_value=True,
+    )
 
 
 def get_data_thresholded_by_sample_values(
@@ -213,6 +193,7 @@ def _get_data_thresholded_by_matrix(
     threshold_by_absolute_value: bool,
     return_absolute_value: bool,
 ):
+    assert raw_fc_matrices.shape == thresholding_matrix.shape
     num_subjects, num_regions, _ = raw_fc_matrices.shape
 
     fc = (
@@ -247,7 +228,13 @@ def _get_data_thresholded_by_matrix(
             for r in range(num_regions):
                 mask[s, r, knn_index[s, r]] = True
     elif threshold_type == DataThresholdingType.SPARSITY:
-        raise NotImplementedError()
+        assert (
+            type(threshold) == int and threshold >= 0 and threshold < 100
+        ), f"Threshold for {DataThresholdingType.SPARSITY} must be int in [0, 100)."
+        th_per_matrix = np.percentile(
+            fc, q=(100 - threshold), axis=(1, 2)
+        ).reshape(-1, 1, 1)
+        mask = np.where(thresholding_operator(fc, th_per_matrix), True, False)
 
     # Transform raw data.
     binary_fc_matrices = np.where(mask, 1, 0)
