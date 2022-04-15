@@ -4,7 +4,7 @@ from brain_connectivity import enums  # training
 
 # Always fixed parameters.
 # ==============================================================================
-model_params = {"size_in": 90}
+model_params = {"size_in": 4005}  # 8100 for flattened,  4005 for triangular.
 training_params = {
     # Training regime.
     "validation_frequency": 1,
@@ -16,7 +16,7 @@ training_params = {
 
 # Hyperparameters.
 # ==============================================================================
-_hyperparameters = {
+hyperparameters = {
     # Dataset.
     # ========
     "node_features": [enums.NodeFeatures.FC_MATRIX_ROW],
@@ -32,14 +32,6 @@ _hyperparameters = {
     "num_hidden_features": [2, 4],
     "num_sublayers": [1],
     "dropout": [0.5],
-    "eps": [0.0],
-    "graph_kwargs": {
-        "thresholding_function": [enums.ThresholdingFunction.GROUP_AVERAGE],
-        # FIXME: Cannot name file with `str` of `operator` function due to "<>".
-        # "thresholding_operator": [operator.ge],
-        "threshold_by_absolute_value": [True, False],
-        "return_absolute_value": [False],
-    },
     # Training.
     # =========
     "criterion": [
@@ -55,32 +47,3 @@ _hyperparameters = {
     "scheduler": [torch.optim.lr_scheduler.ReduceLROnPlateau],
     "scheduler_kwargs": {"factor": [0.5], "patience": [1]},
 }
-
-# fixed = {}
-# fixed.update(_hyperparameters)
-# fixed["graph_kwargs"].update(
-#     {
-#         "threshold_type": [enums.DataThresholdingType.FIXED_THRESHOLD],
-#         "threshold": [0.01, 0.05, 0.1],
-#     }
-# )
-
-sparsity = {}
-sparsity.update(_hyperparameters)
-sparsity["graph_kwargs"].update(
-    {
-        "threshold_type": [enums.DataThresholdingType.SPARSITY],
-        "threshold": [10, 20, 30],
-    }
-)
-
-# knn = {}
-# knn.update(_hyperparameters)
-# knn["graph_kwargs"].update(
-#     {
-#         "threshold_type": [enums.DataThresholdingType.KNN],
-#         "threshold": [5, 10, 15],
-#     }
-# )
-
-hyperparameters = [sparsity]

@@ -29,10 +29,8 @@ _hyperparameters = {
     "batch_size": [2],  # , 4, 8],
     # Model.
     # ======
-    "num_hidden_features": [2, 4],
-    "num_sublayers": [1],
-    "dropout": [0.5],
-    "eps": [0.0],
+    "num_hidden_features": [16],
+    "num_sublayers": [3],
     "graph_kwargs": {
         "thresholding_function": [enums.ThresholdingFunction.GROUP_AVERAGE],
         # FIXME: Cannot name file with `str` of `operator` function due to "<>".
