@@ -7,34 +7,35 @@ import numpy as np
 import pandas as pd
 import torch
 from brain_connectivity import data_utils, dataset, general_utils, training
+from tqdm import tqdm
 
 
 def expand_config(model_type):
+    # isort: off
     global model_class
     global config
     if model_type == "gin":
         from brain_connectivity.models.graph import GIN as model_class
-
         import gin_config as config
+    elif model_type == "gat":
+        from brain_connectivity.models.graph import GAT as model_class
+        import gat_config as config
     elif model_type == "connectivity-dense":
         from brain_connectivity.models.dense import (
             ConnectivityDenseNet as model_class,
         )
-
         import connectivity_dense_config as config
-
     elif model_type in [
-        "connectivity-dense",
         "flattened-dense",
         "triangular-dense",
     ]:
         from brain_connectivity.models.dense import DenseNet as model_class
-
-        import connectivity_dense_config as config
+        import dense_config as config
     else:
         raise ValueError(
             f"`model_type` ({model_type}) not mapped to class and hyperparams"
         )
+    # isort: on
 
 
 def collect_results(results, next_result, key):
@@ -59,7 +60,11 @@ def init_traning(
     # Prepare model.
     model_arguments = {
         **config.model_params,
-        **{k: hyperparameters[k] for k in model_class.hyperparameters},
+        **{
+            k: hyperparameters[k]
+            for k in model_class.hyperparameters
+            if k in hyperparameters.keys()
+        },
     }
     model_class.log(log_folder, model_arguments)
 
@@ -70,13 +75,18 @@ def init_traning(
         **{
             k: hyperparameters[k]
             for k in dataset.FunctionalConnectivityDataset.hyperparameters
+            if k in hyperparameters.keys()
         },
         log_folder=log_folder,
     )
 
     trainer = training.Trainer(
         **config.training_params,
-        **{k: hyperparameters[k] for k in training.Trainer.hyperparameters},
+        **{
+            k: hyperparameters[k]
+            for k in training.Trainer.hyperparameters
+            if k in hyperparameters.keys()
+        },
         log_folder=log_folder,
     )
 
@@ -98,71 +108,7 @@ def model_type_to_dataloader_view(model_type):
         )
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Runs two stage cross validation experiment.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser.add_argument(
-        "experiment_folder",
-        help="Folder for saving experiment data (logs, TensorBoard).",
-    )
-    parser.add_argument(
-        "model_type",
-        help="Model to run.",
-        choices=[
-            "gin",
-            "gat",
-            "connectivity-dense",
-            "flattened-dense",
-            "triangular-dense",
-        ],
-    )
-    parser.add_argument(
-        "target_column",
-        help="The predicted variable.",
-        choices=["target", "sex"],
-    )
-    parser.add_argument(
-        "--data_folder",
-        help="Folder with raw dataset.",
-        default=os.path.normpath("../data"),
-        nargs="?",
-    )
-    parser.add_argument(
-        "--num_assess_folds",
-        help="Number of folds for outter cross validation loop.",
-        type=int,
-        default=10,
-        nargs="?",
-    )
-    parser.add_argument(
-        "--num_select_folds",
-        help="Number of folds for inner cross validation loop.",
-        type=int,
-        default=10,
-        nargs="?",
-    )
-    parser.add_argument(
-        "--random_cv_seed",
-        help="Random seed for cross validation.",
-        type=int,
-        default=None,
-        nargs="?",
-    )
-    parser.add_argument(
-        "--random_model_seed",
-        help="Random seed for model initialization.",
-        type=int,
-        default=None,
-        nargs="?",
-    )
-    parser.add_argument(
-        "--use_cuda",
-        help="If GPU should be used. Fallbacks to 'cpu'.",
-        action="store_true",
-    )
-    args = parser.parse_args()
+def main(args):
     expand_config(args.model_type)
 
     os.makedirs(args.experiment_folder, exist_ok=False)
@@ -173,7 +119,7 @@ if __name__ == "__main__":
 
     # Select device.
     device = torch.device(
-        "cuda" if args.use_cuda and torch.cuda.is_available() else "cpu"
+        "cuda" if args.use_gpu and torch.cuda.is_available() else "cpu"
     )
     exp_logger.info(f"Device: {device}")
     exp_logger.info(f"Random CV seed: {args.random_cv_seed}")
@@ -244,7 +190,12 @@ if __name__ == "__main__":
             # Run training.
             train_dataset = "train"
             eval_dataset = "val"
-            for inner_id in cv.inner_cross_validation():
+            for inner_id in tqdm(
+                cv.inner_cross_validation(),
+                total=args.num_select_folds,
+                desc="Inner CV",
+                leave=False,
+            ):
                 logger.debug(
                     f"Inner fold {inner_id+1} / {args.num_select_folds}"
                 )
@@ -300,6 +251,8 @@ if __name__ == "__main__":
         exp_logger.info(
             f"Best accuracy: {best_mean_accuracy:.4f} ± {best_std_accuracy:.4f}"
         )
+        if args.single_select_fold:
+            return
 
         # Average over 3 runs to offset random initialization.
         general_utils.set_model_random_state(None)
@@ -360,3 +313,76 @@ if __name__ == "__main__":
     log_results(exp_dev_results, "exp dev", exp_logger)
     log_results(exp_test_results, "exp test", exp_logger)
     general_utils.close_all_loggers()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Runs two stage cross validation experiment.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "experiment_folder",
+        help="Folder for saving experiment data (logs, TensorBoard).",
+    )
+    parser.add_argument(
+        "model_type",
+        help="Model to run.",
+        choices=[
+            "gin",
+            "gat",
+            "connectivity-dense",
+            "flattened-dense",
+            "triangular-dense",
+        ],
+    )
+    parser.add_argument(
+        "target_column",
+        help="The predicted variable.",
+        choices=["target", "sex"],
+    )
+    parser.add_argument(
+        "--data_folder",
+        help="Folder with raw dataset.",
+        default=os.path.normpath("../data"),
+        nargs="?",
+    )
+    parser.add_argument(
+        "--num_assess_folds",
+        help="Number of folds for outter cross validation loop.",
+        type=int,
+        default=10,
+        nargs="?",
+    )
+    parser.add_argument(
+        "--num_select_folds",
+        help="Number of folds for inner cross validation loop.",
+        type=int,
+        default=3,
+        nargs="?",
+    )
+    parser.add_argument(
+        "--random_cv_seed",
+        help="Random seed for cross validation.",
+        type=int,
+        default=None,
+        nargs="?",
+    )
+    parser.add_argument(
+        "--random_model_seed",
+        help="Random seed for model initialization.",
+        type=int,
+        default=None,
+        nargs="?",
+    )
+    parser.add_argument(
+        "--use_gpu",
+        help="Whether GPU should be used. Fallbacks to 'cpu'.",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--single_select_fold",
+        help="For experimentation purposes. Returns after single select fold.",
+        action="store_true",
+    )
+    args = parser.parse_args()
+    main(args)
