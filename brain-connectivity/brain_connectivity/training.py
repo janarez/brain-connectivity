@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from torch.utils.tensorboard.writer import SummaryWriter
 from torch_geometric.data.dataloader import DataLoader
+from tqdm import tqdm
 
 from .evaluation import ModelEvaluation
 from .general_utils import close_logger, get_logger
@@ -123,7 +124,9 @@ class Trainer:
         self.evaluation.set_fold(fold)
         self.writer = SummaryWriter(os.path.join(self.log_folder, str(fold)))
 
-        for epoch in range(self.epochs):
+        for epoch in tqdm(
+            range(self.epochs), total=self.epochs, leave=False, desc="Training"
+        ):
             # Train epoch.
             evaluate = (epoch + 1) % self.validation_frequency == 0
             loss = self._epoch_step(
