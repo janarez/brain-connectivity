@@ -129,10 +129,12 @@ class StratifiedCrossValidation:
         num_assess_folds,
         num_select_folds,
         random_state,
+        single_select_fold: bool = False,
     ):
         self.targets = targets
         self.num_assess_folds = num_assess_folds
         self.num_select_folds = num_select_folds
+        self.single_select_fold = single_select_fold
 
         self._outer_skf = StratifiedKFold(
             n_splits=num_assess_folds, random_state=random_state, shuffle=True
@@ -175,6 +177,8 @@ class StratifiedCrossValidation:
         while True:
             try:
                 i, (train_split, val_split) = next(self._inner_cv_iterator)
+                if self.single_select_fold:
+                    self._inner_cv_iterator = iter(())
             except StopIteration:
                 # Reset for next experiment.
                 self._set_inner_cv_iterator()

@@ -138,6 +138,7 @@ def main(args):
         num_assess_folds=args.num_assess_folds,
         num_select_folds=args.num_select_folds,
         random_state=args.random_cv_seed,
+        single_select_fold=args.single_select_fold,
     )
 
     # Experiment results.
@@ -235,9 +236,7 @@ def main(args):
                 f"Val accuracy: {max_mean_accuracy:.4f} ± {max_std_accuracy:.4f}"
             )
 
-            if (max_mean_accuracy - max_std_accuracy) > (
-                best_mean_accuracy - best_std_accuracy
-            ):
+            if max_mean_accuracy > best_mean_accuracy:
                 best_hyperparameters = hyperparameters
                 best_mean_accuracy = max_mean_accuracy
                 best_std_accuracy = max_std_accuracy
@@ -255,10 +254,10 @@ def main(args):
             return
 
         # Average over 3 runs to offset random initialization.
-        general_utils.set_model_random_state(None)
         test_results = defaultdict(list)
         dev_results = defaultdict(list)
         for test_id in range(3):
+            general_utils.set_model_random_state(None)
             log_folder = os.path.join(
                 args.experiment_folder, f"{outer_id:03d}", f"test_{test_id}"
             )
@@ -364,14 +363,14 @@ if __name__ == "__main__":
         "--random_cv_seed",
         help="Random seed for cross validation.",
         type=int,
-        default=None,
+        default=0,
         nargs="?",
     )
     parser.add_argument(
         "--random_model_seed",
         help="Random seed for model initialization.",
         type=int,
-        default=None,
+        default=0,
         nargs="?",
     )
     parser.add_argument(
