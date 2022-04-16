@@ -146,7 +146,6 @@ def main(args):
     exp_test_results = defaultdict(list)
 
     for outer_id in cv.outer_cross_validation():
-        general_utils.set_model_random_state(args.random_model_seed)
         os.makedirs(
             os.path.join(args.experiment_folder, f"{outer_id:03d}"),
             exist_ok=False,
@@ -187,6 +186,7 @@ def main(args):
                 hyperparameters,
                 targets,
             )
+            general_utils.set_model_random_state(args.random_model_seed)
 
             # Run training.
             train_dataset = "train"
