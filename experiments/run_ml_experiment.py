@@ -10,61 +10,8 @@ from sklearn.model_selection import GridSearchCV
 
 from ml_config import estimator_map, hyperparameters_map
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Runs two stage cross validation experiment.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser.add_argument(
-        "experiment_folder",
-        help="Folder for saving experiment logs.",
-    )
-    parser.add_argument(
-        "estimator",
-        help="Model to run.",
-        choices=["knn", "naive_bayes", "svm", "random_forest", "elastic_net"],
-    )
-    parser.add_argument(
-        "target_column",
-        help="The predicted variable.",
-        choices=["target", "sex"],
-    )
-    parser.add_argument(
-        "flatten",
-        help="How to flatten data matrices.",
-        choices=["all", "triag"],
-        default="all",
-        nargs="?",
-    )
-    parser.add_argument(
-        "--data_folder",
-        help="Folder with raw dataset.",
-        default=os.path.normpath("./data"),
-        nargs="?",
-    )
-    parser.add_argument(
-        "--num_assess_folds",
-        help="Number of folds for outter cross validation loop.",
-        type=int,
-        default=10,
-        nargs="?",
-    )
-    parser.add_argument(
-        "--num_select_folds",
-        help="Number of folds for inner cross validation loop.",
-        type=int,
-        default=3,
-        nargs="?",
-    )
-    parser.add_argument(
-        "--random_cv_seed",
-        help="Random seed for cross validation.",
-        type=int,
-        default=0,
-        nargs="?",
-    )
-    args = parser.parse_args()
 
+def main(args):
     os.makedirs(args.experiment_folder, exist_ok=False)
     exp_logger = general_utils.get_logger(
         "experiment",
@@ -123,6 +70,7 @@ if __name__ == "__main__":
             cv=args.num_select_folds,
             n_jobs=-1,
             scoring=scoring,
+            # Fits `grid.best_estimator_` on full `dev` dataset.
             refit="accuracy",
         )
         grid.fit(
@@ -135,15 +83,13 @@ if __name__ == "__main__":
             f"{s}_test_{k}" for k in scoring.keys() for s in ["mean", "std"]
         ]
         val_results = pd.DataFrame(grid.cv_results_)
-        val_results["rank"] = (
-            val_results["mean_test_accuracy"] - val_results["std_test_accuracy"]
-        )
+        val_results["rank"] = val_results["mean_test_accuracy"]
         val_results = val_results.sort_values(by=["rank"], ascending=False)[
             cv_params
         ]
         for k in scoring.keys():
             logger.info(
-                f"Val {k}: {val_results[f'mean_test_{k}'][0]:.4f} ± {val_results[f'std_test_{k}'][0]:.4f}"
+                f"Val {k}: {val_results[f'mean_test_{k}'].iloc[0]:.4f} ± {val_results[f'std_test_{k}'].iloc[0]:.4f}"
             )
 
         logger.info(f"Best hyperparameters: {grid.best_params_}")
@@ -151,7 +97,7 @@ if __name__ == "__main__":
         test_results = defaultdict(list)
         for _ in range(3):
             X, y = data.ml_loader(
-                dataset="test", indices=cv.test_indices, flatten="all"
+                dataset="test", indices=cv.test_indices, flatten=args.flatten
             )
             y_pred = grid.best_estimator_.predict(X)
             for k, scorer in scoring.items():
@@ -164,8 +110,65 @@ if __name__ == "__main__":
             )
         general_utils.close_logger("cv")
 
-for k in scoring.keys():
-    exp_logger.info(
-        f"Exp {k}: {np.mean(exp_test_results[k]):.4f} ± {np.std(exp_test_results[k]):.4f}"
+    for k in scoring.keys():
+        exp_logger.info(
+            f"Exp {k}: {np.mean(exp_test_results[k]):.4f} ± {np.std(exp_test_results[k]):.4f}"
+        )
+    general_utils.close_all_loggers()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Runs two stage cross validation experiment.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-general_utils.close_all_loggers()
+    parser.add_argument(
+        "experiment_folder",
+        help="Folder for saving experiment logs.",
+    )
+    parser.add_argument(
+        "estimator",
+        help="Model to run.",
+        choices=["knn", "naive_bayes", "svm", "random_forest", "elastic_net"],
+    )
+    parser.add_argument(
+        "target_column",
+        help="The predicted variable.",
+        choices=["target", "sex"],
+    )
+    parser.add_argument(
+        "flatten",
+        help="How to flatten data matrices.",
+        choices=["flattened-dense", "triangular-dense"],
+        default="flattened-dense",
+        nargs="?",
+    )
+    parser.add_argument(
+        "--data_folder",
+        help="Folder with raw dataset.",
+        default=os.path.normpath("../data"),
+        nargs="?",
+    )
+    parser.add_argument(
+        "--num_assess_folds",
+        help="Number of folds for outter cross validation loop.",
+        type=int,
+        default=10,
+        nargs="?",
+    )
+    parser.add_argument(
+        "--num_select_folds",
+        help="Number of folds for inner cross validation loop.",
+        type=int,
+        default=3,
+        nargs="?",
+    )
+    parser.add_argument(
+        "--random_cv_seed",
+        help="Random seed for cross validation.",
+        type=int,
+        default=0,
+        nargs="?",
+    )
+    args = parser.parse_args()
+    main(args)
