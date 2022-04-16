@@ -204,15 +204,17 @@ class FunctionalConnectivityDataset:
         # Flattens only upper triangle without diagonal.
         elif view == "triangular-dense":
             x = torch.tensor(
-                [
-                    np.hstack(
-                        [
-                            row[i + 1 :]  # noqa E203
-                            for i, row in enumerate(sample)
-                        ]
-                    )
-                    for sample in x
-                ]
+                np.array(
+                    [
+                        np.hstack(
+                            [
+                                row[i + 1 :]  # noqa E203
+                                for i, row in enumerate(sample)
+                            ]
+                        )
+                        for sample in x
+                    ]
+                )
             )
         return x
 
@@ -299,7 +301,7 @@ class FunctionalConnectivityDataset:
             ] = get_matrix_of_avg_diff_between_groups(
                 self.raw_fc_matrices, self.targets, indices
             )
-        return torch_geometric.data.DataLoader(
+        return torch_geometric.loader.DataLoader(
             self._get_graph_dataset(indices),
             batch_size=self.batch_size,
             shuffle=True if dataset in ["train", "dev"] else False,

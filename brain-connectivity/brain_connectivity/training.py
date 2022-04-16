@@ -7,8 +7,9 @@ from typing import Callable, Optional, Tuple
 
 import numpy as np
 import torch
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.tensorboard.writer import SummaryWriter
-from torch_geometric.data.dataloader import DataLoader
+from torch_geometric.loader.dataloader import DataLoader
 from tqdm import tqdm
 
 from .evaluation import ModelEvaluation
@@ -218,7 +219,10 @@ class Trainer:
 
             # Update learning rate.
             if self.scheduler is not None and not backpropagate:
-                self.scheduler.step(epoch_loss)
+                if isinstance(self.scheduler, ReduceLROnPlateau):
+                    self.scheduler.step(epoch_loss)
+                else:
+                    self.scheduler.step()
                 self.logger.debug(
                     f"Epoch {epoch}: learning rate = {self.optimizer.param_groups[0]['lr']}"
                 )
