@@ -2,7 +2,6 @@ from typing import List, Optional, Union
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from ..enums import ConnectivityMode
 from ..visualizations import plot_fc_matrix
@@ -17,7 +16,7 @@ class ConnectivityEmbedding(nn.Module):
     Output: [batch_size, num_nodes, num_features]
     """
 
-    def __init__(self, size, dropout, residual, init_weights, val, std):
+    def __init__(self, size, dropout, residual, init_weights, val, std=None):
         super(ConnectivityEmbedding, self).__init__()
         # Initialize with fully connected graph.
         self.fc_matrix = nn.Parameter(
@@ -70,9 +69,12 @@ class ConnectivityMLP(nn.Module):
         super(ConnectivityMLP, self).__init__()
         self.fc = nn.Linear(size_in, size_out)
         self.dropout = nn.Dropout(p=dropout)
+        self.activation = nn.ReLU()
 
     def forward(self, x):
-        return F.relu(self.dropout(self.fc(x)))
+        x = self.fc(x)
+        x = self.dropout(self.activation(x))
+        return x
 
 
 class ConnectivitySublayer(nn.Module):
@@ -131,7 +133,6 @@ class ConnectivityDenseNet(Model):
         "num_sublayers",
         "dropout",
         "mode",
-        "num_nodes",
         "readout",
         "emb_dropout",
         "emb_residual",
@@ -278,8 +279,11 @@ class DenseNet(Model):
                 for size_in, size_out in zip(num_in_features, num_out_features)
             ]
         )
+        self.norms = nn.ModuleList(
+            [nn.BatchNorm1d(size_out) for size_out in num_out_features]
+        )
         self.dropout = nn.Dropout(p=dropout)
-
+        self.activation = nn.ReLU()
         # Classification head.
         self.fc = nn.Linear(num_out_features[-1], 1)
 
@@ -287,13 +291,9 @@ class DenseNet(Model):
         x = data.x
 
         # Run sample through model.
-        for sublayer in self.sublayers:
-            x = sublayer(x)
-            x = self.dropout(x)
+        for norm, sublayer in zip(self.norms, self.sublayers):
+            x = norm(sublayer(x))
+            x = self.dropout(self.activation(x))
 
         # Return probabilities.
         return torch.sigmoid(self.fc(x))
-
-    def plot_fc_matrix(self, epoch, sublayer=0):
-        # TODO: Adapt for any connectivity mode.
-        raise NotImplementedError
