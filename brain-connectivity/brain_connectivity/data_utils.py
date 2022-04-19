@@ -49,6 +49,10 @@ def identity_matrix(size: int, i: List[int]):
     return torch.diag(torch.ones(size)).unsqueeze(0).repeat(len(i), 1, 1)
 
 
+def one(size: int, i: List[int]):
+    return torch.ones(len(i), size, 1)
+
+
 def aaft_surrogates(timeseries: np.array, upsample: int):
     return _get_surrogates(timeseries, upsample, surrogates.aaft)
 

@@ -14,6 +14,7 @@ from .data_utils import (
     dotdict_collate,
     iaaft_surrogates,
     identity_matrix,
+    one,
     zeroth_axis_sample,
 )
 from .enums import CorrelationType, NodeFeatures, ThresholdingFunction
@@ -160,6 +161,9 @@ class FunctionalConnectivityDataset:
         # Each node contains one hot encoding of its brain region id.
         elif self.node_features == NodeFeatures.ONE_HOT_REGION:
             node_features_function = partial(identity_matrix, self.num_regions)
+        # Each node contains a one.
+        elif self.node_features == NodeFeatures.ONE:
+            node_features_function = partial(one, self.num_regions)
         else:
             raise ValueError(
                 f"Unknown value of `node_features` - ({self.node_features}). Use the `NodeFeatures` enum."
@@ -225,7 +229,7 @@ class FunctionalConnectivityDataset:
         - `data.x`: Node feature matrix with shape `[num_nodes, num_node_features]`
         - `data.edge_index`: Graph connectivity in COO format with shape `[2, num_edges]` and type `torch.long`
         - `data.edge_attr`: Edge feature matrix with shape `[num_edges, num_edge_features]`
-        - `data.y`: Target to train against (may have arbitrary shape), e.g., node-level targets of shape `[num_nodes, *]` or graph-level targets of shape `[1, *]`
+        - `data.y`: Graph-level targets of shape `[1, *]`
         - `data.pos`: Node position matrix with shape `[num_nodes, num_dimensions]`
         """
         binary_fc_matrices, _ = create_connectivity_matrices(
@@ -304,7 +308,7 @@ class FunctionalConnectivityDataset:
         return torch_geometric.loader.DataLoader(
             self._get_graph_dataset(indices),
             batch_size=self.batch_size,
-            shuffle=True if dataset in ["train", "dev"] else False,
+            shuffle=dataset in ["train", "dev"],
         )
 
     def _dense_loader(self, dataset, indices, view):
@@ -313,7 +317,7 @@ class FunctionalConnectivityDataset:
         return torch.utils.data.dataloader.DataLoader(
             self._get_dense_dataset(indices, view=view),
             batch_size=self.batch_size,
-            shuffle=True if dataset in ["train", "dev"] else False,
+            shuffle=dataset in ["train", "dev"],
             collate_fn=dotdict_collate,
         )
 

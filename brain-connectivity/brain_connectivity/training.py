@@ -125,9 +125,10 @@ class Trainer:
         self.evaluation.set_fold(fold)
         self.writer = SummaryWriter(os.path.join(self.log_folder, str(fold)))
 
-        for epoch in tqdm(
+        epoch_progress = tqdm(
             range(self.epochs), total=self.epochs, leave=False, desc="Training"
-        ):
+        )
+        for epoch in epoch_progress:
             # Train epoch.
             evaluate = (epoch + 1) % self.validation_frequency == 0
             loss = self._epoch_step(
@@ -139,6 +140,7 @@ class Trainer:
             )
             self.train_loss[fold].append(loss)
             self.logger.debug(f"Epoch {epoch}: {train_dataset} loss = {loss}")
+            epoch_progress.set_postfix({"loss": loss})
 
             if evaluate:
                 self.evaluation.log_evaluation(
