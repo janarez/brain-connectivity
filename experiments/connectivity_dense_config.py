@@ -1,10 +1,14 @@
 import torch
 import torch.nn.functional as F
-from brain_connectivity import enums, training
+from brain_connectivity import enums  # training
 
 # Always fixed parameters.
 # ==============================================================================
-model_params = {"size_in": 90}
+model_params = {
+    "size_in": 90,
+    "num_nodes": 90,
+    "mode": enums.ConnectivityMode.SINGLE,
+}
 training_params = {
     # Training regime.
     "validation_frequency": 1,
@@ -20,41 +24,38 @@ hyperparameters = {
     # Dataset.
     # ========
     "node_features": [enums.NodeFeatures.FC_MATRIX_ROW],
-    "upsample_ts": [None],
-    "upsample_ts_method": ["iaaft"],
     "correlation_type": [
-        enums.CorrelationType.PEARSON,
+        # enums.CorrelationType.PEARSON,
         # enums.CorrelationType.GRANGER,
-        # enums.CorrelationType.SPEARMAN,
+        enums.CorrelationType.SPEARMAN,
         # enums.CorrelationType.XI,
     ],
-    "batch_size": [2],  # , 4, 8],
+    "batch_size": [2],
     # Model.
     # ======
-    "num_hidden_features": [2, 4],
-    "num_sublayers": [1],
-    "dropout": [0.5],
-    "mode": [enums.ConnectivityMode.SINGLE],
-    "num_nodes": [90],
-    "readout": ["add"],  # "mean", "max"],
-    "emb_dropout": [0.0],
-    "emb_residual": ["add"],  # [None, "add"],
-    "emb_init_weights": ["constant"],
-    "emb_val": [0.0],
-    "emb_std": [0.01],
-    "graph_kwargs": [None],
+    "num_hidden_features": [45, 30],
+    "num_sublayers": [2],
+    "dropout": [0.3],
+    "readout": ["max", "add"],
+    "emb_dropout": [0.0, 0.1],
+    "emb_residual": [None],  # [None, "add"],
+    "emb_init_weights": ["normal", "constant"],
+    "emb_val": [0.0],  # [0.0001],
+    "emb_std": [0.0001],
     # Training.
     # =========
-    "criterion": [
-        F.binary_cross_entropy
-    ],  # , F.mse_loss, training.cosine_loss],
+    "criterion": [F.mse_loss],
     "optimizer": [torch.optim.AdamW],
     "optimizer_kwargs": {
-        "lr": [0.001],  # , 0.005, 0.0001, 0.0005],
+        "lr": [0.005],
         "weight_decay": [0.0001],
         # "momentum": [0.3],
     },
-    "epochs": [30],
-    "scheduler": [torch.optim.lr_scheduler.ReduceLROnPlateau],
-    "scheduler_kwargs": {"factor": [0.5], "patience": [1]},
+    "epochs": [50],
+    "scheduler": [torch.optim.lr_scheduler.LinearLR],
+    "scheduler_kwargs": {
+        "start_factor": [1],
+        "end_factor": [0.005],
+        "total_iters": [50],
+    },
 }
