@@ -2,7 +2,8 @@ from typing import List, Union
 
 import torch
 import torch.nn as nn
-from torch_geometric.nn import GATConv, GINConv, global_add_pool
+import torch_geometric
+from torch_geometric.nn import BatchNorm, GATConv, GINConv
 
 from .model import Model
 
@@ -16,7 +17,7 @@ class GinMLP(nn.Module):
         self.activation = nn.ReLU()
 
     def forward(self, x):
-        return self.activation(self.dropout(self.fc(x)))
+        return self.dropout(self.activation(self.fc(x)))
 
 
 class GIN(Model):
@@ -31,31 +32,40 @@ class GIN(Model):
         num_sublayers: int = 3,
         eps: float = 0.0,
     ):
-        super(GIN, self).__init__()
+        super().__init__()
 
         num_in_features, num_out_features = self._mlp_dimensions(
             size_in, num_hidden_features, num_sublayers
         )
 
-        self.convs = torch.nn.ModuleList(
+        self.convs = nn.ModuleList(
             [
                 GINConv(nn=GinMLP(size_in, size_out, dropout=dropout), eps=eps)
                 for size_in, size_out in zip(num_in_features, num_out_features)
             ]
         )
+        self.bns = nn.ModuleList(
+            [BatchNorm(in_channels=size) for size in num_out_features]
+        )
+
         self.fc = nn.Linear(num_out_features[-1], 1)
+        # self.fc = nn.Linear(sum(num_out_features), 1)
+        self.activation = nn.ReLU()
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
 
-        # Message passing.
-        for conv in self.convs:
+        # Message passing + readout.
+        # out = []
+        for bn, conv in zip(self.bns, self.convs):
             x = conv(x, edge_index)
-        # Readout.
-        x = global_add_pool(x, batch)
+            x = bn(x)
+            x = torch.relu(x)
+            # out.append(torch_geometric.nn.global_mean_pool(x, batch))
+        # x = torch.cat(out, 1)
+        x = torch_geometric.nn.global_mean_pool(x, batch)
         # Classification FC.
         x = torch.sigmoid(self.fc(x))
-
         return x
 
 
@@ -69,13 +79,13 @@ class GAT(Model):
         num_hidden_features: Union[List[int], int] = 90,
         num_sublayers: int = 3,
     ):
-        super(GAT, self).__init__()
+        super().__init__()
 
         num_in_features, num_out_features = self._mlp_dimensions(
             size_in, num_hidden_features, num_sublayers
         )
 
-        self.convs = torch.nn.ModuleList(
+        self.convs = nn.ModuleList(
             [
                 GATConv(in_channels=int(size_in), out_channels=size_out)
                 for size_in, size_out in zip(num_in_features, num_out_features)
@@ -91,7 +101,7 @@ class GAT(Model):
         for conv in self.convs:
             x = self.activation(conv(x, edge_index))
         # Readout.
-        x = global_add_pool(x, batch)
+        x = torch_geometric.nn.global_add_pool(x, batch)
         # Classification FC.
         x = torch.sigmoid(self.fc(x))
 
