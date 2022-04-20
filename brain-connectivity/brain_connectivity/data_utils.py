@@ -106,6 +106,8 @@ def xicorr(X: np.array, Y: np.array):
     Copied from: https://github.com/czbiohub/xicor/issues/17.
     """
     n = X.size
+    # The timeseries do not have duplicates, otherwise use:
+    # (X + np.random.rand(len(X))*(10**(-12))).argsort(kind='quicksort')
     xi = np.argsort(X, kind="quicksort")
     Y = Y[xi]
     _, b, c = np.unique(Y, return_counts=True, return_inverse=True)
