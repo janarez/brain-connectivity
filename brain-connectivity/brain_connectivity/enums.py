@@ -6,7 +6,6 @@ using the `reload` module function.
 """
 
 from enum import Enum, auto
-from functools import partial
 
 import numpy as np
 
@@ -39,12 +38,16 @@ class CorrelationType(CustomEnum):
     PEARSON = "pearson"
     SPEARMAN = "spearman"
     # Need to wrap function to make it an attribute, not method definition.
-    XI = partial(xicorr)
+    XI = np.vectorize(xicorr, signature="(n),(n)->()")
     GRANGER = np.vectorize(granger_causality, signature="(n),(n)->()")
 
     @property
     def is_symmetric(self):
-        return False if self is CorrelationType.GRANGER else True
+        return (
+            False
+            if self is CorrelationType.GRANGER or self is CorrelationType.XI
+            else True
+        )
 
 
 class DataThresholdingType(CustomEnum):
