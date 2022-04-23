@@ -207,13 +207,13 @@ def _get_data_thresholded_by_matrix(
 
     # Compute mask.
     if threshold_type == DataThresholdingType.FIXED_THRESHOLD:
-        assert (
-            type(threshold) == float
+        assert isinstance(
+            threshold, float
         ), f"Used {type(threshold)} instead of `float` for {DataThresholdingType.FIXED_THRESHOLD}."
         mask = np.where(thresholding_operator(fc, threshold), True, False)
     elif threshold_type == DataThresholdingType.KNN:
-        assert (
-            type(threshold) == int
+        assert isinstance(
+            threshold, int
         ), f"Used {type(threshold)} instead of `int` for {DataThresholdingType.KNN}."
         mask = np.zeros((num_subjects, num_regions, num_regions), dtype=bool)
 
@@ -229,7 +229,7 @@ def _get_data_thresholded_by_matrix(
                 mask[s, r, knn_index[s, r]] = True
     elif threshold_type == DataThresholdingType.SPARSITY:
         assert (
-            type(threshold) == int and threshold >= 0 and threshold < 100
+            isinstance(threshold, int) and threshold >= 0 and threshold < 100
         ), f"Threshold for {DataThresholdingType.SPARSITY} must be int in [0, 100)."
         th_per_matrix = np.percentile(
             fc, q=(100 - threshold), axis=(1, 2)

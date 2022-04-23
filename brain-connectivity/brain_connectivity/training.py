@@ -22,7 +22,7 @@ def stringify(d):
     return "_".join(
         [
             f"{''.join([w[0] for w in k.split('_')])}={v if not isinstance(v, Callable) else v.__name__}"
-            if type(v) != dict
+            if not isinstance(v, dict)
             else stringify(v)
             for k, v in d.items()
         ]
@@ -169,7 +169,9 @@ class Trainer:
                 and (epoch + 1) % self.fc_matrix_plot_frequency == 0
             ):
                 model.plot_fc_matrix(
-                    epoch, sublayer=self.fc_matrix_plot_sublayer
+                    epoch,
+                    sublayer=self.fc_matrix_plot_sublayer,
+                    path=os.path.join(self.log_folder, str(fold)),
                 )
 
     def get_results(self, train_dataset, eval_dataset):

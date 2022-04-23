@@ -209,10 +209,10 @@ class DoubleLevelParameterGrid(ParameterGrid):
         self.expanded_param_grid = []
         self.expanded_dicts = []
         for pg in self.param_grid:
-            exp_pg = dict()
-            exp_dict = dict()
+            exp_pg = {}
+            exp_dict = {}
             for key, value in pg.items():
-                if type(value) == dict:
+                if isinstance(value, dict):
                     exp_dict[key] = value.keys()
                     for k, v in value.items():
                         exp_pg[k] = v
@@ -238,7 +238,7 @@ class DoubleLevelParameterGrid(ParameterGrid):
                     params = dict(zip(keys, v))
                     # Put keys that were originally in a dictionary back inside.
                     for dict_name, dict_keys in exp_dict.items():
-                        params[dict_name] = dict()
+                        params[dict_name] = {}
                         for key in dict_keys:
                             value = params.pop(key)
                             params[dict_name][key] = value

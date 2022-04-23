@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from ..enums import ConnectivityMode
-from ..visualizations import plot_fc_matrix
+from ..visualizations import fc_matrix_heatmap
 from .model import Model
 
 
@@ -17,7 +17,7 @@ class ConnectivityEmbedding(nn.Module):
     """
 
     def __init__(self, size, dropout, residual, init_weights, val, std=None):
-        super(ConnectivityEmbedding, self).__init__()
+        super().__init__()
         # Initialize with fully connected graph.
         self.fc_matrix = nn.Parameter(
             torch.empty(size, size), requires_grad=True
@@ -38,6 +38,7 @@ class ConnectivityEmbedding(nn.Module):
 
         self.dropout = nn.Dropout(p=dropout)
         self.residual = residual
+        self.init_weights = init_weights
 
     def toggle_gradients(self, requires_grad):
         self.fc_matrix.requires_grad = requires_grad
@@ -53,6 +54,8 @@ class ConnectivityEmbedding(nn.Module):
             x = torch.mean(torch.stack([x, x_neighborhoods]), dim=0)
         elif self.residual == "max":
             x = torch.max(torch.stack([x, x_neighborhoods]), dim=0).values
+        else:
+            x = x_neighborhoods
 
         return x
 
@@ -66,7 +69,7 @@ class ConnectivityMLP(nn.Module):
     """
 
     def __init__(self, size_in, size_out, dropout):
-        super(ConnectivityMLP, self).__init__()
+        super().__init__()
         self.fc = nn.Linear(size_in, size_out)
         self.dropout = nn.Dropout(p=dropout)
         self.activation = nn.ReLU()
@@ -96,7 +99,7 @@ class ConnectivitySublayer(nn.Module):
         mode_kwargs: dict,
         emb_matrix: Optional[ConnectivityEmbedding] = None,
     ):
-        super(ConnectivitySublayer, self).__init__()
+        super().__init__()
 
         self.id = sublayer_id
         # Create new FC matrix for this sublayer.
@@ -157,7 +160,7 @@ class ConnectivityDenseNet(Model):
         readout: str = "add",
         **mode_kwargs,
     ):
-        super(ConnectivityDenseNet, self).__init__()
+        super().__init__()
 
         self.mode = mode
         self.fc_matrix = None
@@ -231,18 +234,14 @@ class ConnectivityDenseNet(Model):
         # Return probabilities.
         return torch.sigmoid(self.fc(x))
 
-    def plot_fc_matrix(self, epoch, sublayer=0):
+    def plot_fc_matrix(self, epoch, sublayer, path):
         # TODO: Adapt for any connectivity mode.
-        fc_matrix = self.sublayers[sublayer].fc_matrix.fc_matrix
-        # FIXME: Is it okey to call `detach`?
-        numpy_fc_matrix = fc_matrix.cpu().detach().numpy()
-        print(
-            fc_matrix.sum(),
-            numpy_fc_matrix.sum(),
-            numpy_fc_matrix.mean(),
-            numpy_fc_matrix.std(),
+        fc_matrix_emb = self.sublayers[sublayer].fc_matrix
+        numpy_fc_matrix = fc_matrix_emb.fc_matrix.cpu().detach().numpy()
+        title = f"FC matrix at {epoch} epochs, init: {fc_matrix_emb.init_weights}, residual: {fc_matrix_emb.residual}"
+        fc_matrix_heatmap(
+            matrix=numpy_fc_matrix, epoch=epoch, path=path, title=title
         )
-        plot_fc_matrix(matrix=numpy_fc_matrix, epoch=epoch)
 
 
 class DenseNet(Model):
@@ -268,6 +267,7 @@ class DenseNet(Model):
     ):
         super().__init__()
 
+        self.size_in = size_in
         num_in_features, num_out_features = self._mlp_dimensions(
             size_in, num_hidden_features, num_sublayers
         )
@@ -297,3 +297,14 @@ class DenseNet(Model):
 
         # Return probabilities.
         return torch.sigmoid(self.fc(x))
+
+    def plot_fc_matrix(self, epoch, sublayer, path):
+        dense = self.sublayers[sublayer].weight
+        assert (
+            torch.numel(dense) == self.size_in
+        ), f"Can only deflattened `size_in`**2 matrices, not {torch.numel(dense)}"
+        num_nodes = int(self.size_in ** 0.5)
+        numpy_fc_matrix = (
+            dense.reshape(num_nodes, num_nodes).cpu().detach().numpy()
+        )
+        fc_matrix_heatmap(matrix=numpy_fc_matrix, epoch=epoch, path=path)

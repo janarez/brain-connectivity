@@ -10,7 +10,7 @@ from .model import Model
 
 class GinMLP(nn.Module):
     def __init__(self, size_in, size_out, dropout):
-        super(GinMLP, self).__init__()
+        super().__init__()
 
         self.fc = nn.Linear(size_in, size_out)
         self.dropout = nn.Dropout(p=dropout)
@@ -91,6 +91,10 @@ class GAT(Model):
                 for size_in, size_out in zip(num_in_features, num_out_features)
             ]
         )
+        self.bns = nn.ModuleList(
+            [BatchNorm(in_channels=size) for size in num_out_features]
+        )
+
         self.activation = nn.ReLU()
         self.fc = nn.Linear(num_out_features[-1], 1)
 
@@ -98,10 +102,12 @@ class GAT(Model):
         x, edge_index, batch = data.x, data.edge_index, data.batch
 
         # Message passing.
-        for conv in self.convs:
-            x = self.activation(conv(x, edge_index))
+        for bn, conv in zip(self.bns, self.convs):
+            x = conv(x, edge_index)
+            x = bn(x)
+            x = self.activation(x)
         # Readout.
-        x = torch_geometric.nn.global_add_pool(x, batch)
+        x = torch_geometric.nn.global_mean_pool(x, batch)
         # Classification FC.
         x = torch.sigmoid(self.fc(x))
 

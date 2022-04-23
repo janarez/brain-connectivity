@@ -12,7 +12,7 @@ from ..general_utils import close_logger, get_logger
 
 class Model(nn.Module):
     def __init__(self):
-        super(Model, self).__init__()
+        super().__init__()
 
     @classmethod
     def log(cls, log_folder, kwargs):
