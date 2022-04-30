@@ -158,9 +158,10 @@ class ConnectivityDenseNet(Model):
         emb_std: float = 0.01,
         num_sublayers: int = 3,
         readout: str = "add",
+        binary_cls: bool = True,
         **mode_kwargs,
     ):
-        super().__init__()
+        super().__init__(binary_cls)
 
         self.mode = mode
         self.fc_matrix = None
@@ -232,7 +233,7 @@ class ConnectivityDenseNet(Model):
             x = torch.max(x, dim=1).values
 
         # Return probabilities.
-        return torch.sigmoid(self.fc(x))
+        return self.output_activation(self.fc(x))
 
     def plot_fc_matrix(self, epoch, sublayer, path):
         # TODO: Adapt for any connectivity mode.
@@ -264,8 +265,9 @@ class DenseNet(Model):
         num_hidden_features: Union[int, List[int]],
         dropout: float = 0.5,
         num_sublayers: int = 3,
+        binary_cls: bool = True,
     ):
-        super().__init__()
+        super().__init__(binary_cls)
 
         self.size_in = size_in
         num_in_features, num_out_features = mlp_dimensions(
@@ -296,7 +298,7 @@ class DenseNet(Model):
             x = self.dropout(self.activation(x))
 
         # Return probabilities.
-        return torch.sigmoid(self.fc(x))
+        return self.output_activation(self.fc(x))
 
     def plot_fc_matrix(self, epoch, sublayer, path):
         dense = self.sublayers[sublayer].weight

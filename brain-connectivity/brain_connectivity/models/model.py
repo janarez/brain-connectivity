@@ -11,6 +11,10 @@ from ..general_utils import close_logger, get_logger
 
 
 class Model(nn.Module):
+    def __init__(self, binary_cls):
+        super().__init__()
+        self.binary_cls = binary_cls
+
     @classmethod
     def log(cls, log_folder, kwargs):
         logger = get_logger("model", os.path.join(log_folder, "model.txt"))
@@ -31,6 +35,9 @@ class Model(nn.Module):
 
     def plot_fc_matrix(self, epoch, sublayer):
         raise NotImplementedError
+
+    def output_activation(self, x):
+        return x if not self.binary_cls else nn.functional.sigmoid(x)
 
 
 def mlp_dimensions(size_in, num_hidden_features, num_sublayers):

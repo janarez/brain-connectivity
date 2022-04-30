@@ -31,8 +31,9 @@ class GIN(Model):
         dropout: float = 0.5,
         num_sublayers: int = 3,
         eps: float = 0.0,
+        binary_cls: bool = True,
     ):
-        super().__init__()
+        super().__init__(binary_cls)
 
         num_in_features, num_out_features = mlp_dimensions(
             size_in, num_hidden_features, num_sublayers
@@ -65,7 +66,7 @@ class GIN(Model):
         # x = torch.cat(out, 1)
         x = torch_geometric.nn.global_mean_pool(x, batch)
         # Classification FC.
-        x = torch.sigmoid(self.fc(x))
+        x = self.output_activation(self.fc(x))
         return x
 
 
@@ -78,8 +79,9 @@ class GAT(Model):
         size_in: int,
         num_hidden_features: Union[List[int], int] = 90,
         num_sublayers: int = 3,
+        binary_cls: bool = True,
     ):
-        super().__init__()
+        super().__init__(binary_cls)
 
         num_in_features, num_out_features = mlp_dimensions(
             size_in, num_hidden_features, num_sublayers
@@ -109,6 +111,6 @@ class GAT(Model):
         # Readout.
         x = torch_geometric.nn.global_mean_pool(x, batch)
         # Classification FC.
-        x = torch.sigmoid(self.fc(x))
+        x = self.output_activation(self.fc(x))
 
         return x
