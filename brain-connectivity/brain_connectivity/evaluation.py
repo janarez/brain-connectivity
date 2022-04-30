@@ -6,14 +6,15 @@ import os
 from collections import defaultdict
 
 import numpy as np
+import torch
 from torch.utils.tensorboard.writer import SummaryWriter
 
 from .general_utils import get_logger
 
 
-class ModelEvaluation:
+class Evaluation:
     """
-    Class for calculating model metrics and logging them to tensorboard.
+    Base class for calculating model metrics and logging them to tensorboard.
     """
 
     def __init__(self, log_folder: str):
@@ -29,6 +30,56 @@ class ModelEvaluation:
         self.val_results.append(defaultdict(list))
         self.dev_results.append(defaultdict(list))
         self.test_results.append(defaultdict(list))
+
+    def evaluate(self, predicted, labels):
+        raise NotImplementedError("Override in custom evaluation class.")
+
+    def log_evaluation(self, epoch, dataset: str, writer: SummaryWriter):
+        """
+        Calculates metrics on aggregated confusion matrices.
+        Saves and logs them to tensorboard.
+        """
+        raise NotImplementedError("Override in custom evaluation class.")
+
+    def _get_results(self, dataset: str, index=-1):
+        if dataset == "train":
+            return self.train_results[index]
+        elif dataset == "val":
+            return self.val_results[index]
+        elif dataset == "test":
+            return self.test_results[index]
+        elif dataset == "dev":
+            return self.dev_results[index]
+        else:
+            raise ValueError(
+                f"Incorrect `dataset` value, got {dataset}, accept: train, test, dev, val."
+            )
+
+    def _epoch_reset(self):
+        raise NotImplementedError("Override in custom evaluation class.")
+
+    def _aggregate_results(self, results):
+        "Averages over list of dictionaries with results."
+        agg_results = {}
+        for k in results[0].keys():
+            val_list = [res[k] for res in results]
+            # Take mean and standard deviation across runs.
+            agg_results[k] = (
+                np.mean(val_list, axis=0),
+                np.std(val_list, axis=0),
+            )
+
+        return agg_results
+
+    def get_experiment_results(self, dataset: str):
+        results = self._get_results(dataset, index=slice(None))
+        return self._aggregate_results(results)
+
+
+class BinaryClassificationEvaluation(Evaluation):
+    """
+    Class for calculating model metrics and logging them to tensorboard.
+    """
 
     def evaluate(self, predicted, labels):
         """
@@ -73,20 +124,6 @@ class ModelEvaluation:
         # Reset.
         self._epoch_reset()
 
-    def _get_results(self, dataset: str, index=-1):
-        if dataset == "train":
-            return self.train_results[index]
-        elif dataset == "val":
-            return self.val_results[index]
-        elif dataset == "test":
-            return self.test_results[index]
-        elif dataset == "dev":
-            return self.dev_results[index]
-        else:
-            raise ValueError(
-                f"Incorrect `dataset` value, got {dataset}, accept: train, test, dev, val."
-            )
-
     def _epoch_reset(self):
         self.tp = 0
         self.tn = 0
@@ -95,19 +132,39 @@ class ModelEvaluation:
         # How many times was evaluation run?
         self.total = 0
 
-    def _aggregate_results(self, results):
-        "Averages over list of dictionaries with results."
-        agg_results = {}
-        for k in results[0].keys():
-            val_list = [res[k] for res in results]
-            # Take mean and standard deviation across runs.
-            agg_results[k] = (
-                np.mean(val_list, axis=0),
-                np.std(val_list, axis=0),
-            )
 
-        return agg_results
+class RegressionEvaluation(Evaluation):
+    """
+    Class for calculating model metrics and logging them to tensorboard.
+    """
 
-    def get_experiment_results(self, dataset: str):
-        results = self._get_results(dataset, index=slice(None))
-        return self._aggregate_results(results)
+    def evaluate(self, predicted, labels):
+        """
+        Calculates diff between predicted and true labels for single batch.
+        Saves running totals.
+        """
+        self.error += torch.sum((predicted - labels) ** 2).item()
+        self.total += len(labels)
+
+    def log_evaluation(self, epoch, dataset: str, writer: SummaryWriter):
+        """
+        Calculates metrics on aggregated confusion matrices.
+        Saves and logs them to tensorboard.
+        """
+        # Calculate.
+        rmse = (self.error / self.total) ** 2
+
+        # Log.
+        writer.add_scalar(f"{dataset} rmse", rmse, epoch)
+        self.logger.debug(f"Epoch {epoch}: {dataset} rmse = {rmse}")
+
+        # Save.
+        results = self._get_results(dataset)
+        results["rmse"].append(rmse)
+
+        # Reset.
+        self._epoch_reset()
+
+    def _epoch_reset(self):
+        self.error = 0
+        self.total = 0
