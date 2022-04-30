@@ -14,6 +14,7 @@ from .data_utils import (
     dotdict_collate,
     iaaft_surrogates,
     identity_matrix,
+    identity_matrix_concat_zeroth_axis_sample,
     one,
     zeroth_axis_sample,
 )
@@ -161,9 +162,15 @@ class FunctionalConnectivityDataset:
         # Each node contains one hot encoding of its brain region id.
         elif self.node_features == NodeFeatures.ONE_HOT_REGION:
             node_features_function = partial(identity_matrix, self.num_regions)
-        # Each node contains a one.
+        # Each node contains a `num_regions` ones.
         elif self.node_features == NodeFeatures.ONE:
             node_features_function = partial(one, self.num_regions)
+        # Each node contains concat of one hot and fc row.
+        elif self.node_features == NodeFeatures.ONE_HOT_CAT_FC_ROW:
+            node_features_function = partial(
+                identity_matrix_concat_zeroth_axis_sample,
+                self.raw_fc_matrices if not sur else self.raw_fc_surrogates,
+            )
         else:
             raise ValueError(
                 f"Unknown value of `node_features` - ({self.node_features}). Use the `NodeFeatures` enum."

@@ -45,12 +45,19 @@ def zeroth_axis_sample(matrix: np.array, i: List[int]):
     return torch.from_numpy(matrix[i])
 
 
+def identity_matrix_concat_zeroth_axis_sample(matrix: np.array, i: List[int]):
+    return torch.concat(
+        (identity_matrix(matrix.shape[1], i), zeroth_axis_sample(matrix, i)),
+        dim=-1,
+    )
+
+
 def identity_matrix(size: int, i: List[int]):
     return torch.diag(torch.ones(size)).unsqueeze(0).repeat(len(i), 1, 1)
 
 
 def one(size: int, i: List[int]):
-    return torch.ones(len(i), size, 1)
+    return torch.ones(len(i), size, size)
 
 
 def aaft_surrogates(timeseries: np.array, upsample: int):

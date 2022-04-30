@@ -89,3 +89,4 @@ class NodeFeatures(CustomEnum):
     FC_MATRIX_ROW = auto()
     ONE_HOT_REGION = auto()
     ONE = auto()
+    ONE_HOT_CAT_FC_ROW = auto()
