@@ -255,4 +255,4 @@ class DoubleLevelParameterGrid(ParameterGrid):
                     yield params
 
     def __getitem__(self, _):
-        return NotImplementedError
+        raise NotImplementedError("Should not be required.")

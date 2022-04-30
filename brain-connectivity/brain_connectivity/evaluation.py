@@ -152,7 +152,7 @@ class RegressionEvaluation(Evaluation):
         Saves and logs them to tensorboard.
         """
         # Calculate.
-        rmse = (self.error / self.total) ** 2
+        rmse = (self.error / self.total) ** 0.5
 
         # Log.
         writer.add_scalar(f"{dataset} rmse", rmse, epoch)
