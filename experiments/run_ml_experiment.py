@@ -8,7 +8,12 @@ import sklearn.metrics as metrics
 from brain_connectivity import data_utils, dataset, enums, general_utils
 from sklearn.model_selection import GridSearchCV
 
-from ml_config import estimator_map, hyperparameters_map
+from ml_config import (
+    cls_estimator_map,
+    cls_hyperparameters_map,
+    reg_estimator_map,
+    reg_hyperparameters_map,
+)
 
 
 def main(args):
@@ -31,7 +36,21 @@ def main(args):
         num_assess_folds=args.num_assess_folds,
         num_select_folds=args.num_select_folds,
         random_state=args.random_cv_seed,
+        stratified=not args.regression_experiment,
     )
+
+    # Set task type related variables.
+    estimator_map = (
+        reg_estimator_map if args.regression_experiment else cls_estimator_map
+    )
+    estimator_cls = estimator_map[args.estimator]
+    hyperparameters_map = (
+        reg_hyperparameters_map
+        if args.regression_experiment
+        else cls_hyperparameters_map
+    )
+    hyperparameters = hyperparameters_map[args.estimator]
+    eval_metric = "rmse" if args.regression_experiment else "accuracy"
 
     # Experiment results.
     exp_test_results = defaultdict(list)
@@ -56,22 +75,31 @@ def main(args):
         )
         logger.info(f"Outer fold {outer_id+1} / {args.num_assess_folds}")
 
-        scoring = {
-            "accuracy": metrics.make_scorer(metrics.accuracy_score),
-            "precision": metrics.make_scorer(
-                metrics.precision_score, zero_division=0
-            ),
-            "recall": metrics.make_scorer(metrics.recall_score),
-        }
+        scoring = (
+            {
+                "rmse": metrics.make_scorer(
+                    lambda x, y: metrics.mean_squared_error(x, y) ** 0.5,
+                    greater_is_better=False,
+                )
+            }
+            if args.regression_experiment
+            else {
+                "accuracy": metrics.make_scorer(metrics.accuracy_score),
+                "precision": metrics.make_scorer(
+                    metrics.precision_score, zero_division=0
+                ),
+                "recall": metrics.make_scorer(metrics.recall_score),
+            }
+        )
 
         grid = GridSearchCV(
-            estimator_map[args.estimator](),
-            hyperparameters_map[args.estimator],
+            estimator_cls(),
+            hyperparameters,
             cv=args.num_select_folds,
             n_jobs=-1,
             scoring=scoring,
             # Fits `grid.best_estimator_` on full `dev` dataset.
-            refit="accuracy",
+            refit=eval_metric,
         )
         grid.fit(
             *data.ml_loader(
@@ -83,13 +111,13 @@ def main(args):
             f"{s}_test_{k}" for k in scoring.keys() for s in ["mean", "std"]
         ]
         val_results = pd.DataFrame(grid.cv_results_)
-        val_results["rank"] = val_results["mean_test_accuracy"]
+        val_results["rank"] = val_results[f"mean_test_{eval_metric}"]
         val_results = val_results.sort_values(by=["rank"], ascending=False)[
             cv_params
         ]
         for k in scoring.keys():
             logger.info(
-                f"Val {k}: {val_results[f'mean_test_{k}'].iloc[0]:.4f} ± {val_results[f'std_test_{k}'].iloc[0]:.4f}"
+                f"Val {k}: {np.abs(val_results[f'mean_test_{k}'].iloc[0]):.4f} ± {val_results[f'std_test_{k}'].iloc[0]:.4f}"
             )
 
         logger.info(f"Best hyperparameters: {grid.best_params_}")
@@ -128,13 +156,13 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "estimator",
-        help="Model to run.",
+        help="Model to run. Naive Bayes cannot be run with --regression_experiment flag.",
         choices=["knn", "naive_bayes", "svm", "random_forest", "elastic_net"],
     )
     parser.add_argument(
         "target_column",
-        help="The predicted variable.",
-        choices=["target", "sex"],
+        help="The predicted variable. Use --regression_experiment flag for 'age'.",
+        choices=["target", "sex", "age"],
     )
     parser.add_argument(
         "flatten",
@@ -169,6 +197,11 @@ if __name__ == "__main__":
         type=int,
         default=0,
         nargs="?",
+    )
+    parser.add_argument(
+        "--regression_experiment",
+        help="Run regression instead of binary classification task.",
+        action="store_true",
     )
     args = parser.parse_args()
     main(args)

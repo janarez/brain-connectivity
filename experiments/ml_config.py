@@ -1,10 +1,10 @@
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import SGDClassifier
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.linear_model import ElasticNet, SGDClassifier
 from sklearn.naive_bayes import GaussianNB
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+from sklearn.svm import SVC, SVR
 
-estimator_map = {
+cls_estimator_map = {
     "knn": KNeighborsClassifier,
     "naive_bayes": GaussianNB,
     "svm": SVC,
@@ -12,7 +12,7 @@ estimator_map = {
     "elastic_net": SGDClassifier,
 }
 
-hyperparameters_map = {
+cls_hyperparameters_map = {
     "knn": {
         "n_neighbors": [1, 2, 3, 4, 5],
         "p": [1, 2, 3],
@@ -35,6 +35,37 @@ hyperparameters_map = {
         "loss": ["log", "modified_huber"],
         "alpha": [0.1, 0.01, 0.001],
         "penalty": ["elasticnet"],
+        "l1_ratio": [0.15, 0.25, 0.5, 0.7],
+        "max_iter": [1000, 10000, 20000],
+    },
+}
+
+reg_estimator_map = {
+    "knn": KNeighborsRegressor,
+    "svm": SVR,
+    "random_forest": RandomForestRegressor,
+    "elastic_net": ElasticNet,
+}
+
+reg_hyperparameters_map = {
+    "knn": {
+        "n_neighbors": [1, 2, 3, 4, 5],
+        "p": [1, 2, 3],
+        "weights": ["uniform", "distance"],
+    },
+    "svm": {
+        "C": [0.1, 1, 10, 100, 1000],
+        "kernel": ["poly", "rbf", "sigmoid"],
+        "degree": [1, 2, 3, 4],
+        "epsilon": [1e-3, 1e-2, 1e-1],
+    },
+    "random_forest": {
+        "n_estimators": [50, 100, 200, 500],
+        "max_depth": [1, 2, 3, 5, None],
+        "criterion": ["entropy", "gini"],
+    },
+    "elastic_net": {
+        "alpha": [0.1, 0.01, 0.001],
         "l1_ratio": [0.15, 0.25, 0.5, 0.7],
         "max_iter": [1000, 10000, 20000],
     },
