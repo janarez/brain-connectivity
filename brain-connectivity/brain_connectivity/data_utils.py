@@ -7,7 +7,7 @@ import pandas as pd
 import statsmodels.api as sm
 import torch
 from nolitsa import surrogates
-from sklearn.model_selection import ParameterGrid, StratifiedKFold
+from sklearn.model_selection import KFold, ParameterGrid, StratifiedKFold
 from torch.utils.data.dataloader import default_collate
 from torch.utils.data.dataset import Dataset
 
@@ -135,7 +135,7 @@ def granger_causality(X: np.array, Y: np.array, lag: int = 1):
     return res[lag][0]["ssr_chi2test"][1]
 
 
-class StratifiedCrossValidation:
+class NestedCrossValidation:
     def __init__(
         self,
         targets,
@@ -143,16 +143,18 @@ class StratifiedCrossValidation:
         num_select_folds,
         random_state,
         single_select_fold: bool = False,
+        stratified: bool = False,
     ):
         self.targets = targets
         self.num_assess_folds = num_assess_folds
         self.num_select_folds = num_select_folds
         self.single_select_fold = single_select_fold
 
-        self._outer_skf = StratifiedKFold(
+        kfold = StratifiedKFold if stratified else KFold
+        self._outer_skf = kfold(
             n_splits=num_assess_folds, random_state=random_state, shuffle=True
         )
-        self._inner_skf = StratifiedKFold(
+        self._inner_skf = kfold(
             n_splits=num_select_folds, random_state=random_state, shuffle=True
         )
 

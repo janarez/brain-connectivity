@@ -26,7 +26,7 @@ def main(args):
     targets = df[args.target_column].values
 
     # Init cross-validation.
-    cv = data_utils.StratifiedCrossValidation(
+    cv = data_utils.NestedCrossValidation(
         targets=targets,
         num_assess_folds=args.num_assess_folds,
         num_select_folds=args.num_select_folds,
