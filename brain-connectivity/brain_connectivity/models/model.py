@@ -11,9 +11,6 @@ from ..general_utils import close_logger, get_logger
 
 
 class Model(nn.Module):
-    def __init__(self):
-        super().__init__()
-
     @classmethod
     def log(cls, log_folder, kwargs):
         logger = get_logger("model", os.path.join(log_folder, "model.txt"))
@@ -35,10 +32,11 @@ class Model(nn.Module):
     def plot_fc_matrix(self, epoch, sublayer):
         raise NotImplementedError
 
-    def _mlp_dimensions(self, size_in, num_hidden_features, num_sublayers):
-        if isinstance(num_hidden_features, int):
-            num_out_features = np.repeat(num_hidden_features, num_sublayers)
-        else:
-            num_out_features = num_hidden_features
-        num_in_features = np.hstack([[size_in], num_out_features])
-        return num_in_features, num_out_features
+
+def mlp_dimensions(size_in, num_hidden_features, num_sublayers):
+    if isinstance(num_hidden_features, int):
+        num_out_features = np.repeat(num_hidden_features, num_sublayers)
+    else:
+        num_out_features = num_hidden_features
+    num_in_features = np.hstack([[size_in], num_out_features])
+    return num_in_features, num_out_features

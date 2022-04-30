@@ -5,7 +5,7 @@ import torch.nn as nn
 
 from ..enums import ConnectivityMode
 from ..visualizations import fc_matrix_heatmap
-from .model import Model
+from .model import Model, mlp_dimensions
 
 
 class ConnectivityEmbedding(nn.Module):
@@ -184,7 +184,7 @@ class ConnectivityDenseNet(Model):
         # Else `ConnectivityMode.MULTIPLE`, let each sublayer create its own FC matrix.
 
         # Prepare feature mapping dimensions.
-        num_in_features, num_out_features = self._mlp_dimensions(
+        num_in_features, num_out_features = mlp_dimensions(
             size_in, num_hidden_features, num_sublayers
         )
 
@@ -268,7 +268,7 @@ class DenseNet(Model):
         super().__init__()
 
         self.size_in = size_in
-        num_in_features, num_out_features = self._mlp_dimensions(
+        num_in_features, num_out_features = mlp_dimensions(
             size_in, num_hidden_features, num_sublayers
         )
 

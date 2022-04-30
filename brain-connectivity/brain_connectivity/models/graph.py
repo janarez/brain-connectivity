@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch_geometric
 from torch_geometric.nn import BatchNorm, GATConv, GINConv
 
-from .model import Model
+from .model import Model, mlp_dimensions
 
 
 class GinMLP(nn.Module):
@@ -34,7 +34,7 @@ class GIN(Model):
     ):
         super().__init__()
 
-        num_in_features, num_out_features = self._mlp_dimensions(
+        num_in_features, num_out_features = mlp_dimensions(
             size_in, num_hidden_features, num_sublayers
         )
 
@@ -81,7 +81,7 @@ class GAT(Model):
     ):
         super().__init__()
 
-        num_in_features, num_out_features = self._mlp_dimensions(
+        num_in_features, num_out_features = mlp_dimensions(
             size_in, num_hidden_features, num_sublayers
         )
 
