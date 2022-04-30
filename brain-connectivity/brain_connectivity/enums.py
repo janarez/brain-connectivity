@@ -1,8 +1,5 @@
 """
-Collection of all enums.
-
-We extract all defined enums here, to enable easy debugging in Jupyter
-using the `reload` module function.
+Collection of enums.
 """
 
 from enum import Enum, auto
@@ -84,6 +81,8 @@ class NodeFeatures(CustomEnum):
     """
     FC_MATRIX_ROW: Each node has as its features its row from FC matrix.
     ONE_HOT_REGION: Each node has as its features one hot encoding of its id.
+    ONE: Each node has as its features a vector of ones.
+    ONE_HOT_CAT_FC_ROW: Concatenation of `ONE_HOT_REGION` and `FC_MATRIX_ROW`.
     """
 
     FC_MATRIX_ROW = auto()

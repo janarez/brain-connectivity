@@ -1,3 +1,7 @@
+"""
+Base model class and model utilities.
+"""
+
 import inspect
 import io
 import os
@@ -11,12 +15,19 @@ from ..general_utils import close_logger, get_logger
 
 
 class Model(nn.Module):
+    """
+    Base model class.
+    """
+
     def __init__(self, binary_cls):
         super().__init__()
         self.binary_cls = binary_cls
 
     @classmethod
     def log(cls, log_folder, kwargs):
+        """
+        Logs model architecture and parameters.
+        """
         logger = get_logger("model", os.path.join(log_folder, "model.txt"))
         signature = inspect.signature(cls.__init__)
 
@@ -41,6 +52,9 @@ class Model(nn.Module):
 
 
 def mlp_dimensions(size_in, num_hidden_features, num_sublayers):
+    """
+    Helper for deriving hidden dense layers dimensions.
+    """
     if isinstance(num_hidden_features, int):
         num_out_features = np.repeat(num_hidden_features, num_sublayers)
     else:

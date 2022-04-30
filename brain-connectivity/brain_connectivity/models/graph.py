@@ -1,3 +1,6 @@
+"""
+Graph neural networks.
+"""
 from typing import List, Union
 
 import torch
@@ -9,6 +12,10 @@ from .model import Model, mlp_dimensions
 
 
 class GinMLP(nn.Module):
+    """
+    MLP for GIN layer.
+    """
+
     def __init__(self, size_in, size_out, dropout):
         super().__init__()
 
@@ -21,6 +28,17 @@ class GinMLP(nn.Module):
 
 
 class GIN(Model):
+    """
+    GIN model.
+
+    Args:
+        size_in (int): Number of node features.
+        num_hidden_features (Union[int, List[int]]): Size of hidden layer. Either list or int that will be repeated `num_sublayers` times.
+        dropout (float): Dropout probability in MLP. Default `0.5`.
+        num_sublayers (int): Number of hidden layers Default `3`.
+        eps (float): GIN layer epsilon. Default `0`.
+        binary_cls (bool): If `True` the output layer has sigmoid activation. Default `True`.
+    """
 
     hyperparameters = ["num_hidden_features", "num_sublayers", "dropout", "eps"]
 
@@ -71,6 +89,15 @@ class GIN(Model):
 
 
 class GAT(Model):
+    """
+    GAT model.
+
+    Args:
+        size_in (int): Number of node features.
+        num_hidden_features (Union[int, List[int]]): Size of hidden layer. Either list or int that will be repeated `num_sublayers` times.
+        num_sublayers (int): Number of hidden layers Default `3`.
+        binary_cls (bool): If `True` the output layer has sigmoid activation. Default `True`.
+    """
 
     hyperparameters = ["num_hidden_features", "num_sublayers"]
 

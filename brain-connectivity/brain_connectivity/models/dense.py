@@ -1,3 +1,7 @@
+"""
+Feed forward models.
+"""
+
 from typing import List, Optional, Union
 
 import torch
@@ -127,8 +131,24 @@ class ConnectivityDenseNet(Model):
     """
     Emulates Graph isomorphism network using a fully connected alternative.
 
-    Input: [batch_size, num_nodes, num_in_features]
-    Output: [batch_size, 2]
+    Model:
+        Input: [batch_size, num_nodes, num_in_features]
+        Output: [batch_size, 1]
+
+    Args:
+        num_nodes (int): Number of graph nodes.
+        mode (ConnectivityMode): Determines how is connectivity matrix obtained. See `ConnectivityMode` docs.
+        size_in (int): Number of node features.
+        num_hidden_features (Union[int, List[int]]): Size of hidden layer. Either list or int that will be repeated `num_sublayers` times.
+        dropout (float): Dropout probability in MLP. Default `0.5`.
+        emb_dropout (float): Dropout probability in attn matrix. Default `0`.
+        emb_residual (Optional[str]): Residual around attn matrix. Default `None`.
+        emb_init_weights (str): Init strategy for attn matrix. Default `"constant"` See `ConnectivityEmbedding`.
+        emb_val (float): Init value for attn matrix. Default `0`.
+        emb_std (float): Init std for attn matrix. Default `0.01`.
+        num_sublayers (int): Number of hidden layers Default `3`.
+        readout (str): Readout for combining node embeddings. Default `"add"`.
+        binary_cls (bool): If `True` the output layer has sigmoid activation. Default `True`.
     """
 
     hyperparameters = [
@@ -236,7 +256,9 @@ class ConnectivityDenseNet(Model):
         return self.output_activation(self.fc(x))
 
     def plot_fc_matrix(self, epoch, sublayer, path):
-        # TODO: Adapt for any connectivity mode.
+        """
+        Plots `ConnectivityEmbedding` aka attention matrix as heatmap.
+        """
         fc_matrix_emb = self.sublayers[sublayer].fc_matrix
         numpy_fc_matrix = fc_matrix_emb.fc_matrix.cpu().detach().numpy()
         title = f"FC matrix at {epoch} epochs, init: {fc_matrix_emb.init_weights}, residual: {fc_matrix_emb.residual}"
@@ -247,10 +269,18 @@ class ConnectivityDenseNet(Model):
 
 class DenseNet(Model):
     """
-    Emulates Graph isomorphism network using a fully connected alternative.
+    Fully connected model.
 
-    Input: [batch_size, num_nodes, num_in_features]
-    Output: [batch_size, 2]
+    Model:
+        Input: [batch_size, num_in_features]
+        Output: [batch_size, 1]
+
+    Args:
+        size_in (int): Number of node features.
+        num_hidden_features (Union[int, List[int]]): Size of hidden layer. Either list or int that will be repeated `num_sublayers` times.
+        dropout (float): Dropout probability in MLP. Default `0.5`.
+        num_sublayers (int): Number of hidden layers Default `3`.
+        binary_cls (bool): If `True` the output layer has sigmoid activation. Default `True`.
     """
 
     hyperparameters = [
@@ -301,6 +331,9 @@ class DenseNet(Model):
         return self.output_activation(self.fc(x))
 
     def plot_fc_matrix(self, epoch, sublayer, path):
+        """
+        Plots `sublayer` weights reshaped to square matrix as heatmap.
+        """
         dense = self.sublayers[sublayer].weight
         assert (
             torch.numel(dense) == self.size_in
