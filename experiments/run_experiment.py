@@ -1,5 +1,6 @@
 import argparse
 import logging
+import operator
 import os
 from collections import defaultdict
 
@@ -39,12 +40,12 @@ def expand_config(model_type):
 
 
 def collect_results(results, next_result, key):
-    for k in ["accuracy", "recall", "precision"]:
+    for k in results.keys():
         results[k].append(key(next_result[k]))
 
 
 def log_results(results, results_name, logger=logging):
-    for k in ["accuracy", "recall", "precision"]:
+    for k in results.keys():
         logger.info(
             f"{results_name.title()} {k}: {np.mean(results[k]):.4f} ± {np.std(results[k]):.4f}"
         )
@@ -139,7 +140,15 @@ def main(args):
         num_select_folds=args.num_select_folds,
         random_state=args.random_cv_seed,
         single_select_fold=args.single_select_fold,
+        stratified=not args.regression_experiment,
     )
+
+    # Set task type related variables.
+    config.model_params["binary_cls"] = not args.regression_experiment
+    config.training_params["binary_cls"] = not args.regression_experiment
+    eval_metric = "rmse" if args.regression_experiment else "accuracy"
+    # For classification greater is better for regression smaller is better.
+    eval_operator = operator.lt if args.regression_experiment else operator.gt
 
     # Experiment results.
     exp_dev_results = defaultdict(list)
@@ -159,8 +168,8 @@ def main(args):
         # Model selection.
         # Keep best hyperparameters.
         best_hyperparameters = None
-        best_mean_accuracy = 0
-        best_std_accuracy = 0
+        best_mean_result = 0
+        best_std_result = 0
 
         hyperparameter_grid = data_utils.DoubleLevelParameterGrid(
             config.hyperparameters
@@ -229,26 +238,26 @@ def main(args):
             logger.debug(f"Train: {train_results}")
             logger.debug(f"Val: {eval_results}")
 
-            # Update best setting based on eval accuracy
-            max_mean_accuracy = eval_results["accuracy"][0][-1]
-            max_std_accuracy = eval_results["accuracy"][1][-1]
+            # Update best setting based on eval metric.
+            max_mean_result = eval_results[eval_metric][0][-1]
+            max_std_result = eval_results[eval_metric][1][-1]
             logger.info(
-                f"Val accuracy: {max_mean_accuracy:.4f} ± {max_std_accuracy:.4f}"
+                f"Val {eval_metric}: {max_mean_result:.4f} ± {max_std_result:.4f}"
             )
 
-            if max_mean_accuracy > best_mean_accuracy:
+            if eval_operator(max_mean_result, best_mean_result):
                 best_hyperparameters = hyperparameters
-                best_mean_accuracy = max_mean_accuracy
-                best_std_accuracy = max_std_accuracy
+                best_mean_result = max_mean_result
+                best_std_result = max_std_result
                 logger.info(
-                    f"New best val accuracy: {best_mean_accuracy:.4f} ± {best_std_accuracy:.4f}"
+                    f"New best val {eval_metric}: {best_mean_result:.4f} ± {best_std_result:.4f}"
                 )
                 logger.info(f"New best hyperparameters: {best_hyperparameters}")
 
         # Model assessment.
         exp_logger.info(f"Best hyperparameters: {best_hyperparameters}")
         exp_logger.info(
-            f"Best accuracy: {best_mean_accuracy:.4f} ± {best_std_accuracy:.4f}"
+            f"Best {eval_metric}: {best_mean_result:.4f} ± {best_std_result:.4f}"
         )
         if args.single_select_fold:
             return
@@ -336,8 +345,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "target_column",
-        help="The predicted variable.",
-        choices=["target", "sex"],
+        help="The predicted variable. Use --regression_experiment flag for 'age'.",
+        choices=["target", "sex", "age"],
     )
     parser.add_argument(
         "--data_folder",
@@ -381,6 +390,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--single_select_fold",
         help="For experimentation purposes. Returns after single select fold.",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--regression_experiment",
+        help="Removes output `sigmoid` activation.",
         action="store_true",
     )
     args = parser.parse_args()
