@@ -285,7 +285,11 @@ class FunctionalConnectivityDataset:
                     -1, self.num_regions, self.num_regions
                 ),
                 **self.graph_kwargs,
-            ).reshape(len(indices), -1, self.num_regions, self.num_regions)
+            )
+            binary_fc_surrogates = np.reshape(
+                binary_fc_surrogates,
+                (len(indices), -1, self.num_regions, self.num_regions),
+            )
 
             node_features_function = self._get_node_features_function(sur=True)
             sur_dataset = [
