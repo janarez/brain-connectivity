@@ -12,7 +12,7 @@ from torch.utils.tensorboard.writer import SummaryWriter
 from torch_geometric.loader.dataloader import DataLoader
 from tqdm import tqdm
 
-from .evaluation import ModelEvaluation
+from .evaluation import BinaryClassificationEvaluation, RegressionEvaluation
 from .general_utils import close_logger, get_logger
 from .models.model import Model
 
@@ -68,12 +68,18 @@ class Trainer:
         scheduler_kwargs: Optional[dict] = None,
         fc_matrix_plot_frequency: Optional[int] = None,
         fc_matrix_plot_sublayer: int = 0,
+        binary_cls: bool = True,
     ):
         self.logger = get_logger(
             "trainer", os.path.join(log_folder, "trainer.txt")
         )
         self.log_folder = log_folder
-        self.evaluation = ModelEvaluation(log_folder)
+        eval_class = (
+            BinaryClassificationEvaluation
+            if binary_cls
+            else RegressionEvaluation
+        )
+        self.evaluation = eval_class(log_folder)
 
         self._optimizer = optimizer
         self._optimizer_kwargs = optimizer_kwargs
