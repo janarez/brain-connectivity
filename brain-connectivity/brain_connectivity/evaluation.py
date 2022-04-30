@@ -1,5 +1,5 @@
 """
-Module contains class for calculating model metrics and logging them to tensorboard,
+Module contains classes for calculating metrics and logging them to tensorboard,
 plus related util functions.
 """
 import os
@@ -26,6 +26,9 @@ class Evaluation:
         self._epoch_reset()
 
     def set_fold(self, _):
+        """
+        Prepare evaluation for new cv fold.
+        """
         self.train_results.append(defaultdict(list))
         self.val_results.append(defaultdict(list))
         self.dev_results.append(defaultdict(list))
@@ -36,8 +39,7 @@ class Evaluation:
 
     def log_evaluation(self, epoch, dataset: str, writer: SummaryWriter):
         """
-        Calculates metrics on aggregated confusion matrices.
-        Saves and logs them to tensorboard.
+        Calculates metrics from running totals. Saves and logs them to tensorboard.
         """
         raise NotImplementedError("Override in custom evaluation class.")
 
@@ -58,27 +60,31 @@ class Evaluation:
     def _epoch_reset(self):
         raise NotImplementedError("Override in custom evaluation class.")
 
-    def _aggregate_results(self, results):
-        "Averages over list of dictionaries with results."
-        agg_results = {}
-        for k in results[0].keys():
-            val_list = [res[k] for res in results]
-            # Take mean and standard deviation across runs.
-            agg_results[k] = (
-                np.mean(val_list, axis=0),
-                np.std(val_list, axis=0),
-            )
-
-        return agg_results
-
     def get_experiment_results(self, dataset: str):
+        """
+        Get mean and std of results.
+        """
         results = self._get_results(dataset, index=slice(None))
-        return self._aggregate_results(results)
+        return aggregate_results(results)
+
+
+def aggregate_results(results):
+    "Averages over list of dictionaries with results."
+    agg_results = {}
+    for k in results[0].keys():
+        val_list = [res[k] for res in results]
+        # Take mean and standard deviation across runs.
+        agg_results[k] = (
+            np.mean(val_list, axis=0),
+            np.std(val_list, axis=0),
+        )
+
+    return agg_results
 
 
 class BinaryClassificationEvaluation(Evaluation):
     """
-    Class for calculating model metrics and logging them to tensorboard.
+    Class for calculating binary classification metrics and logging them to tensorboard.
     """
 
     def evaluate(self, predicted, labels):
@@ -97,10 +103,6 @@ class BinaryClassificationEvaluation(Evaluation):
         self.total += len(labels)
 
     def log_evaluation(self, epoch, dataset: str, writer: SummaryWriter):
-        """
-        Calculates metrics on aggregated confusion matrices.
-        Saves and logs them to tensorboard.
-        """
         # Calculate.
         accuracy = (self.tp + self.tn) / self.total
         recall = self.tp / (self.tp + self.fp) if (self.tp + self.fp) > 0 else 0
@@ -129,13 +131,12 @@ class BinaryClassificationEvaluation(Evaluation):
         self.tn = 0
         self.fp = 0
         self.fn = 0
-        # How many times was evaluation run?
         self.total = 0
 
 
 class RegressionEvaluation(Evaluation):
     """
-    Class for calculating model metrics and logging them to tensorboard.
+    Class for calculating regression metrics and logging them to tensorboard.
     """
 
     def evaluate(self, predicted, labels):
@@ -147,10 +148,6 @@ class RegressionEvaluation(Evaluation):
         self.total += len(labels)
 
     def log_evaluation(self, epoch, dataset: str, writer: SummaryWriter):
-        """
-        Calculates metrics on aggregated confusion matrices.
-        Saves and logs them to tensorboard.
-        """
         # Calculate.
         rmse = (self.error / self.total) ** 0.5
 
