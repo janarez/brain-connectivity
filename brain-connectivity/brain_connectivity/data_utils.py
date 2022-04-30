@@ -1,3 +1,9 @@
+"""
+Collection of data related helpers.
+Includes extension of sklearn's `ParameterGrid` and nested cross validation.
+"""
+
+
 from functools import partial
 from itertools import product
 from typing import List
@@ -42,10 +48,16 @@ class DenseDataset(Dataset):
 
 
 def zeroth_axis_sample(matrix: np.array, i: List[int]):
+    """
+    For all items of `i` returns matrix[item] tensor.
+    """
     return torch.from_numpy(matrix[i])
 
 
 def identity_matrix_concat_zeroth_axis_sample(matrix: np.array, i: List[int]):
+    """
+    For all items of `i` returns concatenation of identity matrix and matrix[item] in last dim.
+    """
     return torch.concat(
         (identity_matrix(matrix.shape[1], i), zeroth_axis_sample(matrix, i)),
         dim=-1,
@@ -53,14 +65,23 @@ def identity_matrix_concat_zeroth_axis_sample(matrix: np.array, i: List[int]):
 
 
 def identity_matrix(size: int, i: List[int]):
+    """
+    For all items of `i` returns identity matrix of size `size`.
+    """
     return torch.diag(torch.ones(size)).unsqueeze(0).repeat(len(i), 1, 1)
 
 
 def one(size: int, i: List[int]):
+    """
+    For all items of `i` returns ones matrix of size `size`.
+    """
     return torch.ones(len(i), size, size)
 
 
 def aaft_surrogates(timeseries: np.array, upsample: int):
+    """
+    Upsamples each timeserie `upsample` times using the "aaft" method.
+    """
     return _get_surrogates(timeseries, upsample, surrogates.aaft)
 
 
@@ -93,6 +114,9 @@ def _get_surrogates(timeseries, upsample, sur_func):
 
 
 def calculate_correlation_matrix(timeseries, correlation_type):
+    """
+    Returns FC matrices estimated by `correlation_type`.
+    """
     # Placeholder matrices.
     num_subjects, num_regions, _ = timeseries.shape
     corr_matrices = np.empty((num_subjects, num_regions, num_regions))
@@ -109,7 +133,7 @@ def calculate_correlation_matrix(timeseries, correlation_type):
 
 def xicorr(X: np.array, Y: np.array):
     """
-    Correlation metrics from: https://arxiv.org/abs/1910.12327.
+    Xi correlation metrics from: https://arxiv.org/abs/1910.12327.
     Copied from: https://github.com/czbiohub/xicor/issues/17.
     """
     n = X.size
@@ -136,14 +160,26 @@ def granger_causality(X: np.array, Y: np.array, lag: int = 1):
 
 
 class NestedCrossValidation:
+    """
+    Nested crossvalidation.
+
+    Args:
+        targets (`np.array`): List of all targets.
+        num_assess_folds (int): Number of outer (testing) folds.
+        num_select_folds (int): Number of inner (hyperparameter selection) folds.
+        random_state (int) Random seed for splitting into folds.
+        single_select_fold (bool): If `True` cv is only a single inner fold. Default `False`.
+        stratified (bool): If `True` folds are stratified by `targets`. Default `True`.
+    """
+
     def __init__(
         self,
-        targets,
-        num_assess_folds,
-        num_select_folds,
-        random_state,
+        targets: np.array,
+        num_assess_folds: int,
+        num_select_folds: int,
+        random_state: int,
         single_select_fold: bool = False,
-        stratified: bool = False,
+        stratified: bool = True,
     ):
         self.targets = targets
         self.num_assess_folds = num_assess_folds

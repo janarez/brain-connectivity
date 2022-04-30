@@ -1,3 +1,8 @@
+"""
+Dataset class that takes care of computing FC matrices, correct data format
+for different models and creating dataloaders.
+"""
+
 import os
 import pickle
 from functools import partial
@@ -28,7 +33,21 @@ from .general_utils import get_logger
 
 class FunctionalConnectivityDataset:
     """
-    TODO: Write class docstring.
+    Dataset class that takes care of computing FC matrices, correct data format
+    for different models and creating dataloaders.
+
+    Args:
+        log_folder (`str`): Path for logging.
+        data_folder (`str`): Path to data.
+        device: Device to put data on.
+        targets (`np.array`): Prediction targets in a numpy array.
+        upsample_ts (`Optional[int]`): How many times to upsample each time series. Default `None`.
+        upsample_ts_method (`Optional[str]`): Method for time series upsampling. Either "aaft" or "iaaft". Default `None`.
+        correlation_type (`CorrelationType`): One from enum  `CorrelationType`. Default `CorrelationType.PEARSON`.
+        node_features (`NodeFeatures`): One from enum  `NodeFeatures`. Default `NodeFeatures.FC_MATRIX_ROW`.
+        batch_size (`int`): Default 8.
+        graph_kwargs: (`Optional[dict]`): For graph dataset determines how FC matrices are sparsified.
+            See `create_connectivity_matrices` for parameters. Default `None`.
     """
 
     hyperparameters = [
@@ -231,13 +250,11 @@ class FunctionalConnectivityDataset:
 
     def _get_graph_dataset(self, indices):
         """
-        `Data` object fields
+        PyTorch Geometric dataset format:
 
-        - `data.x`: Node feature matrix with shape `[num_nodes, num_node_features]`
-        - `data.edge_index`: Graph connectivity in COO format with shape `[2, num_edges]` and type `torch.long`
-        - `data.edge_attr`: Edge feature matrix with shape `[num_edges, num_edge_features]`
-        - `data.y`: Graph-level targets of shape `[1, *]`
-        - `data.pos`: Node position matrix with shape `[num_nodes, num_dimensions]`
+        - `data.x`: Node features `[num_nodes, num_node_features]`.
+        - `data.edge_index`: Edges (u, v) `[2, num_edges]` as `torch.long`.
+        - `data.y`: Targets `[1, *]`.
         """
         binary_fc_matrices, _ = create_connectivity_matrices(
             self.raw_fc_matrices[indices],
