@@ -8,13 +8,13 @@ import os
 from contextlib import redirect_stdout
 
 import numpy as np
-import torch.nn as nn
+import torch
 from torchinfo import summary
 
 from ..general_utils import close_logger, get_logger
 
 
-class Model(nn.Module):
+class Model(torch.nn.Module):
     """
     Base model class.
     """
@@ -48,7 +48,7 @@ class Model(nn.Module):
         raise NotImplementedError
 
     def output_activation(self, x):
-        return x if not self.binary_cls else nn.functional.sigmoid(x)
+        return x if not self.binary_cls else torch.sigmoid(x)
 
 
 def mlp_dimensions(size_in, num_hidden_features, num_sublayers):

@@ -1,5 +1,5 @@
 """
-Contains general training class for training any model.
+Contains general training class for training models.
 """
 import contextlib
 import os
@@ -17,8 +17,10 @@ from .general_utils import close_logger, get_logger
 from .models.model import Model
 
 
-# Converts dictionary to string, keeps only first letters of words in keys.
 def stringify(d):
+    """
+    Converts dictionary `d` to string, keeps only first letters of words in keys.
+    """
     return "_".join(
         [
             f"{''.join([w[0] for w in k.split('_')])}={v if not isinstance(v, Callable) else v.__name__}"
@@ -29,7 +31,7 @@ def stringify(d):
     )
 
 
-def cosine_loss(input, target):
+def cosine_loss(preds, target):
     """
     Function that measures cosine loss between the target and input probabilities.
     Mean reduction.
@@ -37,7 +39,7 @@ def cosine_loss(input, target):
     """
     # We can do just dot product since both vectors are already normalized.
     cosine_dissimilarity = 1 - torch.sum(
-        torch.vstack([1 - input, input]).T
+        torch.vstack([1 - preds, preds]).T
         * torch.nn.functional.one_hot(target.long(), num_classes=2),
         axis=1,
     )
@@ -45,7 +47,21 @@ def cosine_loss(input, target):
 
 
 class Trainer:
-    # TODO: Write class docstring.
+    """
+    Facilitates model training and evaluation.
+
+    Args:
+        log_folder (`str`): Path for daving logs.
+        epochs (`int`): Number of training epochs.
+        criterion (`Callable`): Loss function.
+        optimizer (`torch.optim.Optimizer`): Optimizer class.
+        optimizer_kwargs (dict): All settings for `optimizer`. Like learning rate or weight decay.
+        scheduler (`Optional[torch.optim.lr_scheduler]`): Optional schedular class. Default `None`.
+        scheduler_kwargs (`Optional[dict]`): All settings for `scheduler`. Default `None`.
+        fc_matrix_plot_frequency (`Optional[int]`): How (if) often to plot FC matrix. Default `None`.
+        fc_matrix_plot_sublayer (`int`): Layer from which to plot FC matrix. Default 0.
+        binary_cls (`bool`): If `True` binary classification metrics are used else regression. Deafult `True`.
+    """
 
     hyperparameters = [
         "epochs",
@@ -60,7 +76,6 @@ class Trainer:
         self,
         log_folder,
         epochs: int,
-        validation_frequency: int,
         criterion,
         optimizer: torch.optim.Optimizer,
         optimizer_kwargs: dict,
@@ -91,7 +106,6 @@ class Trainer:
         self.criterion = criterion
 
         self.epochs = epochs
-        self.validation_frequency = validation_frequency
         self.train_loss, self.eval_loss = [], []
 
         self.fc_matrix_plot_frequency = fc_matrix_plot_frequency
@@ -102,7 +116,6 @@ class Trainer:
         self.logger.debug(f"Scheduler: {scheduler} {scheduler_kwargs}")
         self.logger.debug(f"Criterion: {self.criterion}")
         self.logger.debug(f"Epochs: {self.epochs}")
-        self.logger.debug(f"Validation frequency: {self.validation_frequency}")
         self.logger.debug(
             f"Plot FC matrix: freq {self.fc_matrix_plot_frequency}, sublayer {self.fc_matrix_plot_sublayer}"
         )
@@ -114,12 +127,22 @@ class Trainer:
         named_evalloader: Tuple[str, DataLoader],
         fold: int,
     ):
+        """
+        Trains and evaluates model on given data.
+
+        Args:
+            model (`Model`): Instance of model.
+            named_trainloader (`Tuple[str, DataLoader]`):`DataLoader` with evaluation data
+                and dataset identifier from ["train", "dev"].
+            named_evalloader (`Tuple[str, DataLoader]`): `DataLoader` with evaluation data
+                and dataset identifier from ["val", "test"].
+            fold (`int`): CV fold ID.
+        """
         train_dataset, trainloader = named_trainloader
         eval_dataset, evalloader = named_evalloader
         self.train_loss.append([])
         self.eval_loss.append([])
 
-        "Runs training, all relevant arguments must be provided on class creation."
         self.optimizer = self._optimizer(
             model.parameters(), **self._optimizer_kwargs
         )
@@ -136,38 +159,27 @@ class Trainer:
         )
         for epoch in epoch_progress:
             # Train epoch.
-            evaluate = (epoch + 1) % self.validation_frequency == 0
             loss = self._epoch_step(
                 model,
                 trainloader,
                 epoch=epoch,
                 dataset=train_dataset,
-                evaluate=evaluate,
             )
             self.train_loss[fold].append(loss)
             self.logger.debug(f"Epoch {epoch}: {train_dataset} loss = {loss}")
             epoch_progress.set_postfix({"loss": loss})
 
-            if evaluate:
-                self.evaluation.log_evaluation(
-                    epoch, train_dataset, self.writer
-                )
-
             # Evaluate epoch.
-            if (epoch + 1) % self.validation_frequency == 0:
-                loss = self._epoch_step(
-                    model,
-                    evalloader,
-                    epoch=epoch,
-                    dataset=eval_dataset,
-                    evaluate=True,
-                )
-                # FIXME: Will currently work only with `validation_freq == 1`.
-                self.eval_loss[fold].append(loss)
-                self.logger.debug(
-                    f"Epoch {epoch}: {eval_dataset} loss = {loss}"
-                )
-                self.evaluation.log_evaluation(epoch, eval_dataset, self.writer)
+            self.evaluation.log_evaluation(epoch, train_dataset, self.writer)
+            loss = self._epoch_step(
+                model,
+                evalloader,
+                epoch=epoch,
+                dataset=eval_dataset,
+            )
+            self.eval_loss[fold].append(loss)
+            self.logger.debug(f"Epoch {epoch}: {eval_dataset} loss = {loss}")
+            self.evaluation.log_evaluation(epoch, eval_dataset, self.writer)
 
             # Plot connectivity matrix.
             if (
@@ -181,6 +193,9 @@ class Trainer:
                 )
 
     def get_results(self, train_dataset, eval_dataset):
+        """
+        Get metrics for given dataset identifiers ["train", "dev"] and  ["val", "test"].
+        """
         train_res = self.evaluation.get_experiment_results(train_dataset)
         eval_res = self.evaluation.get_experiment_results(eval_dataset)
         train_res["loss"] = (
@@ -203,7 +218,6 @@ class Trainer:
         dataloader: DataLoader,
         epoch: int,
         dataset: str,
-        evaluate: bool,
     ):
         backpropagate = dataset in ["train", "dev"]
         if backpropagate:
@@ -222,8 +236,7 @@ class Trainer:
                 running_loss += loss
 
                 # Calculate evaluation metrics.
-                if evaluate:
-                    self.evaluation.evaluate(outputs.view(-1), data.y.view(-1))
+                self.evaluation.evaluate(outputs.view(-1), data.y.view(-1))
 
             epoch_loss = running_loss / len(dataloader)
 
