@@ -281,14 +281,14 @@ class FunctionalConnectivityDataset:
 
         if self.raw_fc_surrogates is not None:
             binary_fc_surrogates, _ = create_connectivity_matrices(
-                self.raw_fc_surrogates[indices].reshape(
+                self.raw_fc_surrogates.reshape(
                     -1, self.num_regions, self.num_regions
                 ),
                 **self.graph_kwargs,
             )
             binary_fc_surrogates = np.reshape(
                 binary_fc_surrogates,
-                (len(indices), -1, self.num_regions, self.num_regions),
+                self.raw_fc_surrogates.shape,
             )
 
             node_features_function = self._get_node_features_function(sur=True)
