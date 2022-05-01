@@ -1,3 +1,7 @@
+"""
+Logging and random state utils.
+"""
+
 import logging
 import random
 from typing import Optional
@@ -45,6 +49,9 @@ def get_logger(name: str, filename: str):
 
 
 def close_logger(name: str):
+    """
+    Closes logger with name `name`.
+    """
     logger = loggers.pop(name)
     handlers = logger.handlers
     for handler in handlers:
@@ -54,6 +61,9 @@ def close_logger(name: str):
 
 
 def close_all_loggers():
+    """
+    Closes all opened loggers.
+    """
     global loggers
     logger_names = list(loggers.keys())
     for name in logger_names:
@@ -61,6 +71,10 @@ def close_all_loggers():
 
 
 def set_model_random_state(random_seed: Optional[int]):
+    """
+    Fixes all training and model randomization to `random_seed`.
+    Or randomizes for `random_seed` `None`.
+    """
     np.random.seed(random_seed)
     random.seed(random_seed)
     # Torch has separate functions instead of passing `None` directly.

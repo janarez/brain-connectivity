@@ -1,3 +1,9 @@
+"""
+Implementations for several FC matrix sparsification strategies.
+The main `create_connectivity_matrices` function dispatches to all the specific methods.
+"""
+
+
 import operator
 from typing import Optional, Union
 
@@ -7,20 +13,40 @@ from .enums import DataThresholdingType, ThresholdingFunction
 
 
 def create_connectivity_matrices(
-    data,
+    data: np.array,
     thresholding_function: ThresholdingFunction,
     threshold_type: DataThresholdingType,
     threshold: Union[float, int],
     thresholding_operator: Union[operator.le, operator.ge] = operator.ge,
-    threshold_by_absolute_value: bool = True,
+    threshold_by_absolute_value: bool = False,
     return_absolute_value: bool = False,
     # Specific to `ThresholdingFunction.GROUP_AVERAGE` and `ThresholdingFunction.EXPLICIT_MATRIX`.
     thresholding_matrix=None,
     # Specific to `ThresholdingFunction.RANDOM`.
     per_subject: bool = True,
 ):
+    """
+    Sparsifies FC matrices (`data` [num_subjects, size, size]) by several available methods.
+
+    Args:
+        data (`np.array`): FC matrices of shape [num_subjects, size, size].
+        thresholding_function (`ThresholdingFunction`): Based on what data are FC matrices thresholded.
+        threshold_type (`DataThresholdingType`): Sparsification strategy.
+        threshold: (`Union[float, int]`): How much / many edges to preserve.
+        thresholding_operator (`Union[operator.le, operator.ge]`): Whether to take greatest (ge)
+            or lowest (le) values. Default `operator.ge`.
+        threshold_by_absolute_value (`bool`): If the thresholding is done assuming absolute values. Default `False`.
+        return_absolute_value (`bool`): If the returned sparsified matrices are in absolute value. Default `False`.
+        thresholding_matrix (`np.array`): For `ThresholdingFunction.GROUP_AVERAGE`
+            and `ThresholdingFunction.EXPLICIT_MATRIX`. Matrix [size, size] to compute the sparsification from.
+        per_subject (`bool`): For `ThresholdingFunction.RANDOM`, if the random matrix
+            is different for each sample. Default `True`.
+
+    Returns:
+        (`np.array`, `np.array`): Sparsified `data`, first array is binary, second real valued.
+    """
     if thresholding_function == ThresholdingFunction.GROUP_AVERAGE:
-        b, r = get_data_threshold_at_largest_average_difference_between_groups(
+        b, r = _get_data_threshold_at_largest_average_difference_between_groups(
             raw_fc_matrices=data,
             avg_difference_matrix=thresholding_matrix,
             threshold_type=threshold_type,
@@ -28,7 +54,7 @@ def create_connectivity_matrices(
             thresholding_operator=thresholding_operator,
         )
     elif thresholding_function == ThresholdingFunction.SUBJECT_VALUES:
-        b, r = get_data_thresholded_by_sample_values(
+        b, r = _get_data_thresholded_by_sample_values(
             raw_fc_matrices=data,
             threshold_type=threshold_type,
             threshold=threshold,
@@ -37,7 +63,7 @@ def create_connectivity_matrices(
             return_absolute_value=return_absolute_value,
         )
     elif thresholding_function == ThresholdingFunction.EXPLICIT_MATRIX:
-        b, r = get_data_thresholded_by_explicit_matrix(
+        b, r = _get_data_thresholded_by_explicit_matrix(
             raw_fc_matrices=data,
             thresholding_matrix=thresholding_matrix,
             threshold_type=threshold_type,
@@ -47,7 +73,7 @@ def create_connectivity_matrices(
             return_absolute_value=return_absolute_value,
         )
     elif thresholding_function == ThresholdingFunction.RANDOM:
-        b, r = get_data_thresholded_by_random_matrix(
+        b, r = _get_data_thresholded_by_random_matrix(
             raw_fc_matrices=data,
             per_subject=per_subject,
             threshold_type=threshold_type,
@@ -61,10 +87,22 @@ def create_connectivity_matrices(
 
 
 def get_matrix_of_avg_diff_between_groups(
-    raw_fc_matrices,
-    binary_targets,
-    train_indices,
+    raw_fc_matrices: np.array,
+    binary_targets: np.array,
+    train_indices: np.array,
 ):
+    """
+    Computes difference between average FC matrix for group 0 and group 1
+    taking into account only indexes given by `train_indices`.
+
+    Args:
+        raw_fc_matrices (`np.array`): FC matrices of shape [num_subjects, size, size].
+        binary_targets (`np.array`): 0/1 targets of shape [num_subjects].
+        train_indices (`np.array`): Indices for subset subjects from `raw_fc_matrices`.
+
+    Returns:
+        (`np.array`): The difference matric of shape [size, size].
+    """
     # Base average information only on training data.
     zero_train_indices = train_indices[binary_targets[train_indices] == 0]
     one_train_indices = train_indices[binary_targets[train_indices] == 1]
@@ -78,7 +116,7 @@ def get_matrix_of_avg_diff_between_groups(
     return avg_difference_matrix
 
 
-def get_data_threshold_at_largest_average_difference_between_groups(
+def _get_data_threshold_at_largest_average_difference_between_groups(
     raw_fc_matrices,
     avg_difference_matrix,
     threshold_type: DataThresholdingType,
@@ -102,7 +140,7 @@ def get_data_threshold_at_largest_average_difference_between_groups(
     )
 
 
-def get_data_thresholded_by_sample_values(
+def _get_data_thresholded_by_sample_values(
     raw_fc_matrices,
     threshold_type: DataThresholdingType,
     threshold: Union[float, int],
@@ -121,7 +159,7 @@ def get_data_thresholded_by_sample_values(
     )
 
 
-def get_data_thresholded_by_explicit_matrix(
+def _get_data_thresholded_by_explicit_matrix(
     raw_fc_matrices,
     thresholding_matrix,
     threshold_type: DataThresholdingType,
@@ -149,7 +187,7 @@ def get_data_thresholded_by_explicit_matrix(
     )
 
 
-def get_data_thresholded_by_random_matrix(
+def _get_data_thresholded_by_random_matrix(
     raw_fc_matrices,
     per_subject: bool,
     threshold_type: DataThresholdingType,
