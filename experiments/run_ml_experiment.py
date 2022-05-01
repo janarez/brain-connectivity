@@ -25,7 +25,7 @@ def main(args):
 
     # Get targets.
     df = pd.read_csv(
-        os.path.join(args.data_folder, "patients-cleaned.csv"),
+        os.path.join(args.data_folder, "subjects.csv"),
         index_col=0,
     )
     targets = df[args.target_column].values

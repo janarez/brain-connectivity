@@ -11,7 +11,7 @@ This repository contains code to run machine learning experiments with functiona
   - `functional-connectivity.ipynb`: Visual exploration of functional connectivity matrices.
 - `data/`: All data goes here. FC matrices are cached after first computation.
   - `timeseries.pickle`: Pickled numpy array of shape `[num_subjects, num_brain_regions, num_time_points]`.
-  - `patients_data.csv`: CSV with modeling targets that presumes header and index. Supported targets in header are {"target", "age", "sex"}.
+  - `subjects.csv`: CSV with modeling targets that presumes header and index. Targets in header are {"target", "age", "sex"}.
 - `experiments/`
   - `run_experiment.py`: Script for deep learning experiments.
   - `run_ml_experiment.py`: Script for standard machine learning experiments.

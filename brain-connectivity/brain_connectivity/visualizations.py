@@ -1,3 +1,7 @@
+"""
+Matplotlib and seaborn visualizations.
+"""
+
 import os
 
 import matplotlib.pyplot as plt
@@ -5,6 +9,9 @@ from seaborn import heatmap
 
 
 def fc_matrix_heatmap(matrix, epoch, path, title=None):
+    """
+    Plot 2D `matrix` as heatmap and save figure at `path`.
+    """
     _, ax = plt.subplots(nrows=1, ncols=1)
     ax = heatmap(
         matrix, cmap="RdBu", center=0.0, xticklabels=10, yticklabels=10

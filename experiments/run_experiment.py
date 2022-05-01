@@ -128,7 +128,7 @@ def main(args):
 
     # Get targets.
     df = pd.read_csv(
-        os.path.join(args.data_folder, "patients-cleaned.csv"),
+        os.path.join(args.data_folder, "subjects.csv"),
         index_col=0,
     )
     targets = df[args.target_column].values
@@ -213,7 +213,6 @@ def main(args):
                     model=model_class(**model_arguments).to(device),
                     named_trainloader=(
                         train_dataset,
-                        # TODO: Variable loaders.
                         data.dataloader(
                             dataset=train_dataset,
                             indices=cv.train_indices,
