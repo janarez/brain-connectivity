@@ -1,5 +1,5 @@
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.linear_model import ElasticNet, SGDClassifier
+from sklearn.linear_model import ElasticNet, LogisticRegression
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.svm import SVC, SVR
@@ -9,7 +9,7 @@ cls_estimator_map = {
     "naive_bayes": GaussianNB,
     "svm": SVC,
     "random_forest": RandomForestClassifier,
-    "elastic_net": SGDClassifier,
+    "elastic_net": LogisticRegression,
 }
 
 cls_hyperparameters_map = {
@@ -32,11 +32,11 @@ cls_hyperparameters_map = {
         "criterion": ["entropy", "gini"],
     },
     "elastic_net": {
-        "loss": ["log", "modified_huber"],
-        "alpha": [0.1, 0.01, 0.001],
+        "solver": ["saga"],
+        "C": [0.1, 1, 10, 100, 1000],
         "penalty": ["elasticnet"],
         "l1_ratio": [0.15, 0.25, 0.5, 0.7],
-        "max_iter": [1000, 10000, 20000],
+        "max_iter": [10000],
     },
 }
 
@@ -62,11 +62,11 @@ reg_hyperparameters_map = {
     "random_forest": {
         "n_estimators": [50, 100, 200, 500],
         "max_depth": [1, 2, 3, 5, None],
-        "criterion": ["entropy", "gini"],
+        "criterion": ["mse"],
     },
     "elastic_net": {
-        "alpha": [0.1, 0.01, 0.001],
+        "alpha": [0.01, 0.1, 1],
         "l1_ratio": [0.15, 0.25, 0.5, 0.7],
-        "max_iter": [1000, 10000, 20000],
+        "max_iter": [100000],
     },
 }

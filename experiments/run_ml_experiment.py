@@ -159,7 +159,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "estimator",
-        help="Model to run. Naive Bayes cannot be run with --regression_experiment flag.",
+        help="Model to run. Naive Bayes cannot be run with --regression_experiment flag and elastic net without it.",
         choices=["knn", "naive_bayes", "svm", "random_forest", "elastic_net"],
     )
     parser.add_argument(
