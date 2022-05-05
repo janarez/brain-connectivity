@@ -12,7 +12,11 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 import torch
-from nolitsa import surrogates
+
+try:
+    from nolitsa import surrogates
+except ImportError:
+    surrogates = None
 from sklearn.model_selection import KFold, ParameterGrid, StratifiedKFold
 from torch.utils.data.dataloader import default_collate
 from torch.utils.data.dataset import Dataset
