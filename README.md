@@ -22,7 +22,7 @@ This repository contains code to run machine learning experiments with functiona
 
 fMRI data are private and therefore not provided. Instead, the `data` folder contains dummy time series and targets.
 
-## Run experiments
+## Get started
 
 Clone the repository.
 
@@ -31,6 +31,32 @@ Install the `brain-connectivity` package via pip from its top level directory (w
 ```bash
 pip install -e .
 ```
+
+### GPU
+
+If you want to run the experiments on a GPU, you have to manually install PyTorch and PyTorch Geometric with the correct CUDA support for you machine. See especially the [PyTorch Geometric installation guide](https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html#installation-via-pip-wheels).
+
+### Surrogates
+
+The `brain-connectivity` package supports creating surrogate time series using the [`nolitsa` repository](https://github.com/manu-mannattil/nolitsa). It, however, needs to be patched. If you want to use this functionality run the following steps:
+
+```bash
+git clone https://github.com/manu-mannattil/nolitsa.git
+cd nolitsa
+git checkout 40bef
+git apply ../nolitsa.patch
+pip install -e .
+```
+
+### Developing
+
+The package uses isort, black and flake8 for consistent formatting (see `.vscode/settings.json` for used settings). For development purposed you can install these dependencies with:
+
+```bash
+pip install -e .[dev]
+```
+
+## Run experiments
 
 For standard machine learning experiments run the `run_ml_experiment.py` script. For PyTorch deep learning models run the `run_experiment.py` script.
 
