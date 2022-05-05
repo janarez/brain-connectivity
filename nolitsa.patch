@@ -1,0 +1,23 @@
+diff --git a/nolitsa/surrogates.py b/nolitsa/surrogates.py
+index 584e5e6..1a7d7c6 100644
+--- a/nolitsa/surrogates.py
++++ b/nolitsa/surrogates.py
+@@ -142,6 +142,9 @@ def iaaft(x, maxiter=1000, atol=1e-8, rtol=1e-10):
+     t = np.fft.rfft(np.random.permutation(x))
+ 
+     for i in range(maxiter):
++        # Assure no zeroes.
++        t = np.where(t != 0, t, np.finfo(t.dtype).eps)
++
+         # Match power spectrum.
+         s = np.real(np.fft.irfft(ampl * t / np.abs(t), n=len(x)))
+ 
+@@ -158,7 +161,7 @@ def iaaft(x, maxiter=1000, atol=1e-8, rtol=1e-10):
+             perr = cerr
+ 
+     # Normalize error w.r.t. mean of the "true" power spectrum.
+-    return y, i, cerr / np.mean(ampl ** 2)
++    return y  # , i, cerr / np.mean(ampl ** 2)
+ 
+ 
+ def mismatch(x, length=None, weight=0.5, neigh=3):
