@@ -99,6 +99,9 @@ class FunctionalConnectivityDataset:
     def _get_raw_matrices(
         self, correlation_type, upsample_ts, upsample_ts_method, data_folder
     ):
+        if not os.path.exists(os.path.join(data_folder, "cache")):
+            os.mkdir(os.path.join(data_folder, "cache"))
+
         # Check for cached pickles.
         path = os.path.join(
             data_folder, "cache", f"raw_matrices_{correlation_type}.pickle"
