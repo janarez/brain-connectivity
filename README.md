@@ -5,7 +5,7 @@ This repository contains code to run machine learning experiments with functiona
 ## Contents
 
 - `brain-connectivity/`: Package with code powering the experiments.
-  - `README.md`: Info about the package.
+  - [`README.md`](./brain-connectivity/README.md): Info about the package.
 - `data-exploration/`
   - `timeseries.ipynb`: Preprocessing raw data for experiments. Exploration of raw timeseries.
   - `functional-connectivity.ipynb`: Visual exploration of functional connectivity matrices.
@@ -30,7 +30,7 @@ Clone the repository.
 git clone https://github.com/janarez/brain-connectivity.git
 ```
 
-Since installing PyTorch and PyTorch Geometric using the correct wheels from `setup.py` is tricky, the whole repository has its own `requirements.txt` file. Install them by running:
+Since installing PyTorch and PyTorch Geometric using the correct wheels from `setup.py` is tricky, the whole repository has its own `requirements.txt` file. Install requirements by running:
 
 ```bash
 cd brain-connectivity
@@ -61,7 +61,7 @@ pip install -e .
 
 ### Developing
 
-The `brain_connectivity` package uses isort, black and flake8 for consistent formatting (see `.vscode/settings.json` for used settings). For development purposes you might want include these dependencies during package install by:
+The `brain_connectivity` package uses isort, black and flake8 for consistent formatting (see `.vscode/settings.json` for used settings). For development purposes you might want to include these dependencies during package install by:
 
 ```bash
 pip install -e .[dev]
@@ -75,10 +75,12 @@ To see the required and optional script arguments use the `--help` flag.
 
 Each model's hyperparameter configuration is in its config file (e.g., `gin_config.py`).
 
+If you want to replicate the experiments from the diploma thesis read [`thesis_experiments.md`](./experiments/thesis_experiments.md). The [frozen requirements](./experiments/thesis_frozen_requirements.txt) might come in handy too.
+
 ## Notebooks
 
-The `data-exploration` folder contains two notebooks. They are saved with outputs, so you can check what the available data looks like.
+The `data-exploration` folder contains two notebooks. They are saved with outputs, so you can check what functional connectivity data look like.
 
 The `timeseries.ipynb` notebook in the first part loads raw data and prepares them for experiments. This can only be run with the raw data files. The second part visualizes the time series and can be run independently of the first part.
 
-The `functional-connectivity.ipynb` notebooks explores functional connectivity matrices. You can create the matrices using connectivity functions from the `brain_connectivity` package.
+The `functional-connectivity.ipynb` notebook explores functional connectivity matrices. You can create the matrices using connectivity functions from the `brain_connectivity` package.
