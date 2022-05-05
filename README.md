@@ -26,21 +26,32 @@ fMRI data are private and therefore not provided. Instead, the `data` folder con
 
 Clone the repository.
 
-Install the `brain-connectivity` package via pip from its top level directory (where `setup.py` is located):
-
 ```bash
-pip install -e .
+git clone https://github.com/janarez/brain-connectivity.git
 ```
 
-### GPU
+Since installing PyTorch and PyTorch Geometric using the correct wheels from `setup.py` is tricky, the whole repository has its own `requirements.txt` file. Install them by running:
 
-If you want to run the experiments on a GPU, you have to manually install PyTorch and PyTorch Geometric with the correct CUDA support for you machine. See especially the [PyTorch Geometric installation guide](https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html#installation-via-pip-wheels).
+```bash
+cd brain-connectivity
+pip install -r requirements.txt
+```
+
+You might need to adjust the CUDA version for your machine (or don't use it).
+
+Then install the `brain-connectivity` package via pip from its top level directory (where `setup.py` is located):
+
+```bash
+cd brain-connectivity
+pip install -e .
+```
 
 ### Surrogates
 
 The `brain-connectivity` package supports creating surrogate time series using the [`nolitsa` repository](https://github.com/manu-mannattil/nolitsa). It, however, needs to be patched. If you want to use this functionality run the following steps:
 
 ```bash
+cd ..
 git clone https://github.com/manu-mannattil/nolitsa.git
 cd nolitsa
 git checkout 40bef
@@ -50,7 +61,7 @@ pip install -e .
 
 ### Developing
 
-The package uses isort, black and flake8 for consistent formatting (see `.vscode/settings.json` for used settings). For development purposed you can install these dependencies with:
+The `brain_connectivity` package uses isort, black and flake8 for consistent formatting (see `.vscode/settings.json` for used settings). For development purposes you might want include these dependencies during package install by:
 
 ```bash
 pip install -e .[dev]
@@ -63,3 +74,11 @@ For standard machine learning experiments run the `run_ml_experiment.py` script.
 To see the required and optional script arguments use the `--help` flag.
 
 Each model's hyperparameter configuration is in its config file (e.g., `gin_config.py`).
+
+## Notebooks
+
+The `data-exploration` folder contains two notebooks. They are saved with outputs, so you can check what the available data looks like.
+
+The `timeseries.ipynb` notebook in the first part loads raw data and prepares them for experiments. This can only be run with the raw data files. The second part visualizes the time series and can be run independently of the first part.
+
+The `functional-connectivity.ipynb` notebooks explores functional connectivity matrices. You can create the matrices using connectivity functions from the `brain_connectivity` package.
