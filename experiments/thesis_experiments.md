@@ -1,6 +1,5 @@
 # Configurations for all schizophrenia experiments reported in "Utilization of brain connectivity in classification and regression tasks in brain data" diploma thesis.
 
-
 ## Schizophrenia discrimination
 
 ### Standard ML models
@@ -28,7 +27,8 @@ Results are reported for this configuration:
 
 Results are reported for this configuration:
 
-`[{'node_features': [<NodeFeatures.FC_MATRIX_ROW: 1>], 'correlation_type': [<CorrelationType.XI: functools.partial(<function xicorr at 0x000002142869AAF8>)>], 'batch_size': [4, 8, 16], 'num_hidden_features': [2, 4], 'num_sublayers': [1], 'dropout': [0.3], 'criterion': [<function cosine_loss at 0x000002142FEFF708>], 'optimizer': [<class 'torch.optim.adamw.AdamW'>], 'optimizer_kwargs': {'lr': [0.01], 'weight_decay': [0.0001]}, 'epochs': [50], 'scheduler': [<class 'torch.optim.lr_scheduler.LinearLR'>], 'scheduler_kwargs': {'start_factor': [1], 'end_factor': [0.01], 'total_iters': [50]}}]`
+`[{'node_features': [<NodeFeatures.FC_MATRIX_ROW: 1>], 'correlation_type': [<CorrelationType.SPEARMAN: 'spearman'>], 'batch_size': [2], 'num_hidden_features': [45], 'num_sublayers': [2], 'dropout': [0.3], 'readout': ['max'], 'emb_dropout': [0.0, 0.1], 'emb_residual': [None, 'mean'], 'emb_init_weights': ['normal'], 'emb_val': [0.0], 'emb_std': [0.0001], 'criterion': [<function mse_loss at 0x0000029BB2773F78>], 'optimizer': [<class 'torch.optim.adamw.AdamW'>], 'optimizer_kwargs': {'lr': [0.005], 'weight_decay': [0.0001]}, 'epochs': [50], 'scheduler': [<class 'torch.optim.lr_scheduler.LinearLR'>], 'scheduler_kwargs': {'start_factor': [1], 'end_factor': [0.005], 'total_iters': [50]}}]`
+
 
 #### GAT model
 
