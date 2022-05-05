@@ -73,7 +73,7 @@ For standard machine learning experiments run the `run_ml_experiment.py` script.
 
 To see the required and optional script arguments use the `--help` flag.
 
-Each model's hyperparameter configuration is in its config file (e.g., `gin_config.py`).
+Each model's hyperparameter configuration is in its config file (e.g., `gin_config.py`). The hyperparameter names correspond to initialization arguments of either model, trainer or dataset class. You can check the relevant class for description of each hyperparameter.
 
 If you want to replicate the experiments from the diploma thesis read [`thesis_experiments.md`](./experiments/thesis_experiments.md). The [frozen requirements](./experiments/thesis_frozen_requirements.txt) might come in handy too.
 
