@@ -2,6 +2,7 @@ import argparse
 import logging
 import operator
 import os
+import sys
 from collections import defaultdict
 
 import numpy as np
@@ -40,7 +41,7 @@ def expand_config(model_type):
 
 
 def collect_results(results, next_result, key):
-    for k in results.keys():
+    for k in next_result.keys():
         results[k].append(key(next_result[k]))
 
 
@@ -168,7 +169,7 @@ def main(args):
         # Model selection.
         # Keep best hyperparameters.
         best_hyperparameters = None
-        best_mean_result = 0
+        best_mean_result = sys.maxsize if args.regression_experiment else -1
         best_std_result = 0
 
         hyperparameter_grid = data_utils.DoubleLevelParameterGrid(
