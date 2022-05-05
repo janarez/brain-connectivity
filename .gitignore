@@ -1,16 +1,11 @@
 /.venv/
+.pylintrc
 .vscode/launch.json
 
 /data/
-pickles/
 runs/
 
-# Byte-compiled / optimized / DLL files
 __pycache__
 *.py[cod]
 *$py.class
 *.egg-info
-
-meeting-notes.md
-progress-notes.md
-research-notes.md
