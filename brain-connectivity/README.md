@@ -7,7 +7,7 @@ Source code to run machine learning experiments with functional connectivity mat
 Install the package via pip from its top level directory (where `setup.py` is located):
 
 ```bash
-pip install . -e
+pip install -e .
 ```
 
 ## Contents
