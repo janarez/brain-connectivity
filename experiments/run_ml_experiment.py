@@ -80,7 +80,10 @@ def main(args):
                 "rmse": metrics.make_scorer(
                     lambda x, y: metrics.mean_squared_error(x, y) ** 0.5,
                     greater_is_better=False,
-                )
+                ),
+                "mae": metrics.make_scorer(
+                    metrics.mean_absolute_error, greater_is_better=False
+                ),
             }
             if args.regression_experiment
             else {

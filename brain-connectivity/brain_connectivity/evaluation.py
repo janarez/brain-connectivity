@@ -85,6 +85,8 @@ def aggregate_results(results):
 class BinaryClassificationEvaluation(Evaluation):
     """
     Class for calculating binary classification metrics and logging them to tensorboard.
+
+    Metrics: accuracy, precision, recall.
     """
 
     def evaluate(self, predicted, labels):
@@ -137,6 +139,8 @@ class BinaryClassificationEvaluation(Evaluation):
 class RegressionEvaluation(Evaluation):
     """
     Class for calculating regression metrics and logging them to tensorboard.
+
+    Metrics: root mean square error, mean absolute error.
     """
 
     def evaluate(self, predicted, labels):
@@ -144,24 +148,30 @@ class RegressionEvaluation(Evaluation):
         Calculates diff between predicted and true labels for single batch.
         Saves running totals.
         """
-        self.error += torch.sum((predicted - labels) ** 2).item()
+        self.error_squared += torch.sum((predicted - labels) ** 2).item()
+        self.error_abs += torch.sum(torch.abs(predicted - labels)).item()
         self.total += len(labels)
 
     def log_evaluation(self, epoch, dataset: str, writer: SummaryWriter):
         # Calculate.
-        rmse = (self.error / self.total) ** 0.5
+        rmse = (self.error_squared / self.total) ** 0.5
+        mae = self.error_abs / self.total
 
         # Log.
         writer.add_scalar(f"{dataset} rmse", rmse, epoch)
+        writer.add_scalar(f"{dataset} mae", mae, epoch)
         self.logger.debug(f"Epoch {epoch}: {dataset} rmse = {rmse}")
+        self.logger.debug(f"Epoch {epoch}: {dataset} mae = {mae}")
 
         # Save.
         results = self._get_results(dataset)
         results["rmse"].append(rmse)
+        results["mae"].append(mae)
 
         # Reset.
         self._epoch_reset()
 
     def _epoch_reset(self):
-        self.error = 0
+        self.error_squared = 0
+        self.error_abs = 0
         self.total = 0
