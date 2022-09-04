@@ -2,6 +2,8 @@
 
 This repository contains code to run machine learning experiments with functional connectivity matrices, including training scripts with nested cross validation.
 
+You can read my 2022 Master thesis from MMF UK in Prague on "Utilization of brain connectivity in classification and regression tasks in brain data" [here](https://dspace.cuni.cz/handle/20.500.11956/173962).
+
 ## Contents
 
 - `brain-connectivity/`: Package with code powering the experiments.
